@@ -1,6 +1,7 @@
 export type {
   TimelineWindow,
-  MainSessionSummary,
+  TimelineSession,
+  TimelineSessionOption,
   AgentLane,
   TimelineResponse,
   AgentRunDetail,
@@ -18,8 +19,10 @@ export { useTimeline, TIMELINE_RANGES, type TimelineRange } from './hooks/useTim
 export { useAgentRunDetail } from './hooks/useAgentRunDetail';
 
 export { GanttChart } from './components/GanttChart';
-export { MainSessionBanner } from './components/MainSessionBanner';
+export { SessionBanner } from './components/SessionBanner';
+export { SessionGroup } from './components/SessionGroup';
 export { AgentLaneRow } from './components/AgentLaneRow';
 export { TimelineAxis } from './components/TimelineAxis';
 export { RangeSelector } from './components/RangeSelector';
+export { SessionSelector } from './components/SessionSelector';
 export { AgentDetailPanel } from './components/AgentDetailPanel';

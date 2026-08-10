@@ -11,7 +11,7 @@ export function TimelineAxis({ window }: TimelineAxisProps) {
   const ticks = TimelineDomain.timeTicks(window);
 
   return (
-    <div className="flex items-center gap-3 pb-1 text-[10px] text-neutral-600">
+    <div className="flex items-center gap-3 pb-1 text-xs text-neutral-600">
       <div className={LANE_LABEL_COLUMN_CLASS} aria-hidden="true" />
       <div className="relative h-4 flex-1">
         {ticks.map((tick) => (

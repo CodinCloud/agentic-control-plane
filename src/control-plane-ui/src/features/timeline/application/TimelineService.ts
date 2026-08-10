@@ -13,9 +13,9 @@ class TimelineService {
     this.repository = repository;
   }
 
-  async getTimeline(since?: string): Promise<Result<TimelineResponse, TimelineError>> {
+  async getTimeline(since?: string, sessionId?: string): Promise<Result<TimelineResponse, TimelineError>> {
     try {
-      const timeline = await this.repository.getTimeline(since);
+      const timeline = await this.repository.getTimeline(since, sessionId);
       return Result.success(timeline);
     } catch (error) {
       return this.handleError(error);

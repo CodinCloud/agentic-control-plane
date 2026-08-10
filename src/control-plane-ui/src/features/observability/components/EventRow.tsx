@@ -17,7 +17,7 @@ export function EventRow({ event }: EventRowProps) {
 
   return (
     <div
-      className="flex items-center gap-3 border-b border-neutral-800/60 px-3 py-2 text-xs last:border-b-0 hover:bg-neutral-900/40"
+      className="flex items-center gap-3 border-b border-neutral-800/60 px-3 py-2.5 text-sm last:border-b-0 hover:bg-neutral-900/40"
       title={event.error ?? undefined}
     >
       <span
@@ -27,15 +27,15 @@ export function EventRow({ event }: EventRowProps) {
         title={event.sessionId}
       />
 
-      <span className="w-16 shrink-0 tabular-nums text-neutral-500">
+      <span className="w-20 shrink-0 tabular-nums text-neutral-500">
         {ObservabilityDomain.formatTimestamp(event.receivedAt)}
       </span>
 
       <span
         className={
           isMain
-            ? 'w-32 shrink-0 truncate font-medium text-neutral-200'
-            : 'w-32 shrink-0 truncate text-sky-400'
+            ? 'w-36 shrink-0 truncate font-medium text-neutral-200'
+            : 'w-36 shrink-0 truncate text-sky-400'
         }
         title={ObservabilityDomain.agentLabel(event.agentType)}
       >
@@ -50,19 +50,19 @@ export function EventRow({ event }: EventRowProps) {
         {ObservabilityDomain.eventLabel(event)}
       </span>
 
-      <span className="w-16 shrink-0 truncate text-right text-neutral-500" title={event.project ?? undefined}>
+      <span className="w-20 shrink-0 truncate text-right text-neutral-500" title={event.project ?? undefined}>
         {event.project ?? '—'}
       </span>
 
-      <span className="w-16 shrink-0 text-right tabular-nums text-neutral-500">
+      <span className="w-20 shrink-0 text-right tabular-nums text-neutral-500">
         {ObservabilityDomain.formatDuration(event.durationMs)}
       </span>
 
-      <span className="w-16 shrink-0 text-right tabular-nums text-neutral-500">
+      <span className="w-20 shrink-0 text-right tabular-nums text-neutral-500">
         {ObservabilityDomain.formatTokens(billable)}
       </span>
 
-      <span className="w-14 shrink-0 text-right">
+      <span className="w-16 shrink-0 text-right">
         {failed ? <StatusBadge tone="destructive">échec</StatusBadge> : null}
       </span>
     </div>

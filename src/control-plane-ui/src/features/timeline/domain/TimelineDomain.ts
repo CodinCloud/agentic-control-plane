@@ -1,4 +1,4 @@
-import type { AgentLane, TimelineWindow } from '../timelineTypes';
+import type { AgentLane, TimelineSession, TimelineWindow } from '../timelineTypes';
 
 /**
  * Pure, static business rules for the timeline (Gantt) feature. No IO, no
@@ -14,6 +14,13 @@ export class TimelineDomain {
    */
   static readonly MIN_BAR_HEIGHT_PX = 6;
   static readonly MAX_BAR_HEIGHT_PX = 28;
+
+  /**
+   * Breathing room left/right of the tightest bounds when fitting the axis
+   * to content (see `fitWindowToSessions`) — the extreme bars must not touch
+   * the track's edges.
+   */
+  static readonly WINDOW_FIT_MARGIN_RATIO = 0.03;
 
   /**
    * A lane counts as "en cours" if it has no `endedAt`. The contract already
@@ -82,6 +89,49 @@ export class TimelineDomain {
     const untilMs = new Date(window.until).getTime();
     if (!(nowMs > untilMs)) return window;
     return { ...window, until: new Date(nowMs).toISOString() };
+  }
+
+  /**
+   * The axis must track what is actually on screen, not the server's
+   * declared window (which defaults to a 24h lookback for "Session
+   * entière" and crushes every bar into a sliver at the right edge when the
+   * real data only spans a few hours). Bounds span every session's own
+   * [startedAt, endedAt] *and* every one of their lanes — a session with no
+   * agent must still hold its place on the shared axis (plan decision #3),
+   * so its own bandeau bounds count even when its `lanes` array is empty.
+   * Padded by `WINDOW_FIT_MARGIN_RATIO` on each side. Returns `null` when
+   * there are no sessions to fit against — the caller falls back to the
+   * server's window. The axis stays one and the same across every session
+   * group (plan decision #4): this is computed once, over the whole
+   * `sessions[]` array, never per group.
+   */
+  static fitWindowToSessions(
+    sessions: Pick<TimelineSession, 'startedAt' | 'endedAt' | 'lanes'>[],
+    nowMs: number,
+  ): TimelineWindow | null {
+    if (sessions.length === 0) return null;
+
+    let minStartMs = Infinity;
+    let maxEndMs = -Infinity;
+    const considerSpan = (startedAt: string, endedAt: string | null) => {
+      minStartMs = Math.min(minStartMs, new Date(startedAt).getTime());
+      maxEndMs = Math.max(maxEndMs, endedAt ? new Date(endedAt).getTime() : nowMs);
+    };
+
+    for (const session of sessions) {
+      considerSpan(session.startedAt, session.endedAt);
+      for (const lane of session.lanes) considerSpan(lane.startedAt, lane.endedAt);
+    }
+
+    const span = Math.max(maxEndMs - minStartMs, 1);
+    const margin = span * TimelineDomain.WINDOW_FIT_MARGIN_RATIO;
+    return {
+      since: new Date(minStartMs - margin).toISOString(),
+      until: new Date(maxEndMs + margin).toISOString(),
+      // Not the server's turn boundary — this window is a display-only fit,
+      // never fed back into `useTimeline`'s `since` calculation.
+      lastTurnStartedAt: null,
+    };
   }
 
   /** Evenly spaced tick marks for the shared time axis, `count` points across [since, until]. */

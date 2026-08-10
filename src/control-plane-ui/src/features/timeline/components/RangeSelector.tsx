@@ -13,7 +13,7 @@ export interface RangeSelectorProps {
  */
 export function RangeSelector({ value, onChange }: RangeSelectorProps) {
   return (
-    <label className="flex items-center gap-2 text-xs text-neutral-500">
+    <label className="flex items-center gap-2 text-sm text-neutral-500">
       Plage
       <Select
         value={value}

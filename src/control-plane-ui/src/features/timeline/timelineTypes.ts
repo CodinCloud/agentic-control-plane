@@ -1,9 +1,9 @@
 /**
- * Types mirroring the frozen API contract (plans/002-timeline-agents.md,
- * "Contrat d'API (figé)"), updated for the backend as delivered (see
- * GetTimelineQuery.cs / GetAgentRunDetailQuery.cs): `mainSession` is
- * nullable (empty database is a valid state) and the window carries
- * `lastTurnStartedAt`, the exact "dernier tour" boundary.
+ * Types mirroring the frozen API contract (plans/003-multi-sessions.md,
+ * "Contrat d'API (figé)"). `mainSession` is gone: the server now resolves
+ * *every* session touching the requested window, not just the most recently
+ * active one — see plan §"Pourquoi" (a `/compact` opens a new session and
+ * silently orphans the previous one's agents on screen).
  */
 export interface TimelineWindow {
   since: string;
@@ -16,17 +16,6 @@ export interface TimelineWindow {
    * hooks/useTimeline.ts.
    */
   lastTurnStartedAt: string | null;
-}
-
-/** Bandeau de référence — covers the whole session, never rendered as a lane. */
-export interface MainSessionSummary {
-  sessionId: string;
-  model: string;
-  startedAt: string;
-  /** null = session in progress. */
-  endedAt: string | null;
-  messages: number;
-  billableTokens: number;
 }
 
 /** One lane = one agent instance, never one agent type. */
@@ -45,12 +34,31 @@ export interface AgentLane {
   spawnDepth: number;
 }
 
-export interface TimelineResponse {
-  window: TimelineWindow;
-  /** null only when the resolved window has no session at all (empty database) — mainSession and lanes are null/empty together. */
-  mainSession: MainSessionSummary | null;
+/**
+ * One session's bandeau + its own lanes. Rendered as a self-contained visual
+ * group (see components/SessionGroup.tsx) — the session no longer implies a
+ * single elected timeline, several can be live at once (two Claude Code
+ * windows, a `/compact` mid-session, etc).
+ */
+export interface TimelineSession {
+  sessionId: string;
+  project: string | null;
+  model: string;
+  startedAt: string;
+  /** null = session in progress. */
+  endedAt: string | null;
+  messages: number;
+  billableTokens: number;
+  /** True when the session's last activity is under 5 minutes old (plan decision #2). */
+  isActive: boolean;
   /** Sorted by `startedAt` ascending, per contract. */
   lanes: AgentLane[];
+}
+
+export interface TimelineResponse {
+  window: TimelineWindow;
+  /** Sorted by most recent activity first, per contract. Empty array = no session in the window (empty database), not an error. */
+  sessions: TimelineSession[];
 }
 
 /** The detail panel behind a click on a bar — same lane, plus brief and report. Fetched on demand only, see hooks/useAgentRunDetail.ts. */
@@ -59,4 +67,10 @@ export interface AgentRunDetail extends AgentLane {
   report: string;
   briefTruncated: boolean;
   reportTruncated: boolean;
+}
+
+/** Short identity (id + project) used by the session selector — see hooks/useTimeline.ts for how this stays populated across a session filter. */
+export interface TimelineSessionOption {
+  sessionId: string;
+  project: string | null;
 }

@@ -30,7 +30,7 @@ export function EventFiltersBar() {
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
       <div className="mr-1 flex items-center gap-1 self-center text-neutral-500">
         <SlidersHorizontal className="h-3.5 w-3.5" />
-        <span className="text-[10px] uppercase tracking-wide">Filtres</span>
+        <span className="text-xs uppercase tracking-wide">Filtres</span>
       </div>
 
       <FilterSelect

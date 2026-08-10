@@ -6,9 +6,9 @@ using ControlPlane.Domain.Abstractions;
 namespace ControlPlane.Api.Endpoints.Timeline;
 
 /// <summary>
-/// GET /api/timeline?sessionId=&amp;since=&lt;ISO&gt; — one lane per agent, plus the main-session
-/// banner. <c>sessionId</c> is an optional filter: when omitted, the handler falls back to the
-/// most recently active session of the window.
+/// GET /api/timeline?sessionId=&amp;since=&lt;ISO&gt; — one banner per session, each with its own
+/// agent lanes. <c>sessionId</c> is an optional filter: when omitted, every session active in
+/// the window is returned; when provided, only that one.
 /// </summary>
 internal sealed class GetTimeline : IEndpoint
 {

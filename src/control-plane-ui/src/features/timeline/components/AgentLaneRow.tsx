@@ -31,7 +31,7 @@ export function AgentLaneRow({ lane, window, maxBillableTokens, onSelect }: Agen
       <div className={cn(LANE_LABEL_COLUMN_CLASS, 'min-w-0')}>
         <div className="flex items-center gap-1.5">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
-          <span className="truncate text-xs font-medium text-neutral-200" title={lane.agentType}>
+          <span className="truncate text-sm font-medium text-neutral-200" title={lane.agentType}>
             {lane.agentType}
           </span>
           {ongoing ? (
@@ -40,7 +40,7 @@ export function AgentLaneRow({ lane, window, maxBillableTokens, onSelect }: Agen
             </StatusBadge>
           ) : null}
         </div>
-        <div className="truncate text-[11px] text-neutral-500" title={lane.taskDescription}>
+        <div className="truncate text-xs text-neutral-500" title={lane.taskDescription}>
           {lane.taskDescription}
         </div>
       </div>
@@ -63,7 +63,7 @@ export function AgentLaneRow({ lane, window, maxBillableTokens, onSelect }: Agen
           />
           <span
             className={cn(
-              'whitespace-nowrap text-[10px] tabular-nums text-neutral-400',
+              'whitespace-nowrap text-xs tabular-nums text-neutral-400',
               side === 'left' ? 'mr-1.5' : 'ml-1.5',
             )}
           >

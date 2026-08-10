@@ -23,7 +23,7 @@ export function AgentCostBreakdown({ tokensByAgent }: AgentCostBreakdownProps) {
         <ul className="flex flex-col gap-2">
           {rows.map((row) => (
             <li key={row.agentType ?? 'main'} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-sm">
                 <span
                   className={
                     ObservabilityDomain.isMainSession(row.agentType)

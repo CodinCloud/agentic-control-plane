@@ -16,8 +16,8 @@ export interface AgentDetailPanelProps {
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</span>
-      <span className="truncate text-xs text-neutral-200" title={value}>
+      <span className="text-xs uppercase tracking-wide text-neutral-500">{label}</span>
+      <span className="truncate text-sm text-neutral-200" title={value}>
         {value}
       </span>
     </div>
@@ -59,10 +59,10 @@ export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
       <div className="relative flex h-full w-full max-w-xl flex-col border-l border-neutral-800 bg-neutral-950 shadow-xl">
         <div className="flex items-center justify-between gap-2 border-b border-neutral-800 p-4">
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-neutral-100">
+            <h2 className="truncate text-base font-semibold text-neutral-100">
               {detail?.agentType ?? 'Détail de l’agent'}
             </h2>
-            <p className="truncate text-[11px] text-neutral-500" title={agentId ?? undefined}>
+            <p className="truncate text-xs text-neutral-500" title={agentId ?? undefined}>
               {agentId}
             </p>
           </div>
@@ -114,31 +114,31 @@ export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
 
               <div>
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
                     Description de la tâche
                   </h3>
                 </div>
-                <p className="rounded-md border border-neutral-800 bg-neutral-900/40 p-3 text-xs text-neutral-300">
+                <p className="rounded-md border border-neutral-800 bg-neutral-900/40 p-3 text-sm text-neutral-300">
                   {detail.taskDescription}
                 </p>
               </div>
 
               <div>
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Brief</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Brief</h3>
                   {detail.briefTruncated ? <StatusBadge tone="warning">tronqué</StatusBadge> : null}
                 </div>
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-neutral-800 bg-neutral-900/60 p-3 font-mono text-[11px] leading-relaxed text-neutral-300">
+                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-neutral-800 bg-neutral-900/60 p-3 font-mono text-xs leading-relaxed text-neutral-300">
                   {detail.brief}
                 </pre>
               </div>
 
               <div>
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Rapport</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Rapport</h3>
                   {detail.reportTruncated ? <StatusBadge tone="warning">tronqué</StatusBadge> : null}
                 </div>
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-neutral-800 bg-neutral-900/60 p-3 font-mono text-[11px] leading-relaxed text-neutral-300">
+                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-neutral-800 bg-neutral-900/60 p-3 font-mono text-xs leading-relaxed text-neutral-300">
                   {detail.report}
                 </pre>
               </div>

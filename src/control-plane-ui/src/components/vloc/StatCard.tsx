@@ -23,12 +23,12 @@ export function StatCard({ label, value, hint, icon, tone = 'default', className
   return (
     <Card className={cn('flex flex-col', className)}>
       <CardHeader className="flex-row items-center justify-between gap-2 pb-0">
-        <CardTitle className="text-xs uppercase tracking-wide text-neutral-500">{label}</CardTitle>
+        <CardTitle className="text-sm uppercase tracking-wide text-neutral-500">{label}</CardTitle>
         {icon ? <span className="text-neutral-500">{icon}</span> : null}
       </CardHeader>
       <CardContent className="pt-1">
-        <div className={cn('text-2xl font-semibold tabular-nums', TONE_VALUE_CLASS[tone])}>{value}</div>
-        {hint ? <div className="mt-1 text-xs text-neutral-500">{hint}</div> : null}
+        <div className={cn('text-3xl font-semibold tabular-nums', TONE_VALUE_CLASS[tone])}>{value}</div>
+        {hint ? <div className="mt-1 text-sm text-neutral-500">{hint}</div> : null}
       </CardContent>
     </Card>
   );

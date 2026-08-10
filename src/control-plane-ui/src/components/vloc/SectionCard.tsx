@@ -28,7 +28,7 @@ export function SectionCard({
         <div className="flex items-center gap-2">
           {icon ? <span className="text-neutral-400">{icon}</span> : null}
           <div>
-            <CardTitle className="text-sm font-semibold text-neutral-100">{title}</CardTitle>
+            <CardTitle className="text-base font-semibold text-neutral-100">{title}</CardTitle>
             {description ? <CardDescription>{description}</CardDescription> : null}
           </div>
         </div>

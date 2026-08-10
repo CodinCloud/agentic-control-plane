@@ -17,7 +17,7 @@ export function EventTimeline() {
 
   return (
     <SectionCard
-      title="Timeline"
+      title="Event Streaming"
       description="Événements reçus par le hook pipeline, du plus récent au plus ancien"
       action={<StreamStatusIndicator status={streamStatus} />}
     >
