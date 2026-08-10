@@ -1,8 +1,8 @@
-using System.Text.Json;
 using ControlPlane.Application.Abstractions.Clock;
 using ControlPlane.Application.Abstractions.Data;
 using ControlPlane.Application.Abstractions.Messaging;
 using ControlPlane.Domain.Abstractions;
+using ControlPlane.Domain.ModelUsages;
 using Microsoft.EntityFrameworkCore;
 
 namespace ControlPlane.Application.Stats.GetStats;
@@ -61,6 +61,13 @@ public sealed record SessionStats(
     int Events,
     long BillableTokens);
 
+/// <summary>
+/// Tout ce qui compte des tokens ou nomme un modèle vient de <see cref="ModelUsage"/> (les
+/// transcripts). Tout ce qui compte des événements de cycle de vie — outils, permissions,
+/// compactions, sessions — vient de HookEvent. Les deux sources ne doivent jamais être
+/// additionnées : un même travail y apparaît sous deux formes, et les mélanger produit un
+/// double comptage.
+/// </summary>
 internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateTimeProvider dateTimeProvider)
     : IQueryHandler<GetStatsQuery, StatsResponse>
 {
@@ -88,19 +95,35 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
                 e.AgentType,
                 e.ToolName,
                 e.DurationMs,
-                e.InputTokens,
-                e.OutputTokens,
-                e.CacheCreationTokens,
-                e.CacheReadTokens,
                 e.Source))
             .ToListAsync(cancellationToken);
 
-        StatsTotals totals = BuildTotals(rows);
-        List<AgentTokenStats> tokensByAgent = BuildTokensByAgent(rows, totals.BillableTokens);
+        // No hook payload actually carries tokens_used in practice, despite the docs, so
+        // tokensByAgent and the per-session context/model below are computed from
+        // ModelUsage (read from transcript JSONL) rather than from the rows above. The
+        // rest of the KPIs (toolReliability, contextPressure, permissions) stay on
+        // HookEvent — hooks are the only source for those.
+        List<UsageRow> usageRows = await context.ModelUsages
+            .AsNoTracking()
+            .Where(u => u.TimestampUtc >= since)
+            .Select(u => new UsageRow(
+                u.Id,
+                u.SessionId,
+                u.AgentId,
+                u.AgentType,
+                u.Model,
+                u.InputTokens,
+                u.OutputTokens,
+                u.CacheCreationTokens,
+                u.CacheReadTokens))
+            .ToListAsync(cancellationToken);
+
+        StatsTotals totals = BuildTotals(rows, usageRows);
+        List<AgentTokenStats> tokensByAgent = BuildTokensByAgent(usageRows, totals.BillableTokens);
         List<ToolReliabilityStats> toolReliability = BuildToolReliability(rows);
         ContextPressureStats contextPressure = BuildContextPressure(rows);
         PermissionsStats permissions = BuildPermissions(rows);
-        List<SessionStats> sessions = await BuildSessionsAsync(rows, cancellationToken);
+        List<SessionStats> sessions = BuildSessions(rows, usageRows);
 
         var response = new StatsResponse(
             new StatsWindow(since, until),
@@ -114,12 +137,20 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
         return Result.Success(response);
     }
 
-    private static StatsTotals BuildTotals(List<EventRow> rows)
+    /// <summary>
+    /// Tokens (<c>BillableTokens</c>, <c>CacheReadTokens</c>, <c>CacheHitRatio</c>) come from
+    /// <see cref="ModelUsage"/>, not <see cref="rows"/>: no hook payload actually carries
+    /// tokens_used in practice (see the query above), so a HookEvent-sourced total was an
+    /// artefact of hand-injected test fixtures rather than a real figure. <c>Events</c> and
+    /// <c>Sessions</c> stay HookEvent-sourced — they're lifecycle-event counts, which is
+    /// exactly what HookEvent is for.
+    /// </summary>
+    private static StatsTotals BuildTotals(List<EventRow> rows, List<UsageRow> usageRows)
     {
-        long input = rows.Sum(r => (long)(r.InputTokens ?? 0));
-        long output = rows.Sum(r => (long)(r.OutputTokens ?? 0));
-        long cacheCreation = rows.Sum(r => (long)(r.CacheCreationTokens ?? 0));
-        long cacheRead = rows.Sum(r => (long)(r.CacheReadTokens ?? 0));
+        long input = usageRows.Sum(u => (long)u.InputTokens);
+        long output = usageRows.Sum(u => (long)u.OutputTokens);
+        long cacheCreation = usageRows.Sum(u => (long)u.CacheCreationTokens);
+        long cacheRead = usageRows.Sum(u => (long)u.CacheReadTokens);
 
         long billable = input + output + cacheCreation;
 
@@ -133,13 +164,21 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
         return new StatsTotals(rows.Count, sessions, billable, cacheRead, cacheHitRatio);
     }
 
-    private static List<AgentTokenStats> BuildTokensByAgent(List<EventRow> rows, long totalBillable)
+    /// <summary>
+    /// KPI 1, from <see cref="ModelUsage"/>: <c>Events</c> counts assistant messages (one
+    /// per <see cref="UsageRow"/>), not hook events — there's no per-tool granularity at
+    /// this level, only per-turn. <c>Share</c>'s denominator is <paramref name="totalBillable"/>,
+    /// i.e. <see cref="StatsTotals.BillableTokens"/> as computed by <see cref="BuildTotals"/> —
+    /// both are ModelUsage-sourced now, so they're the same figure and shouldn't be
+    /// recomputed twice.
+    /// </summary>
+    private static List<AgentTokenStats> BuildTokensByAgent(List<UsageRow> usageRows, long totalBillable)
     {
-        return rows
-            .GroupBy(r => r.AgentType) // null key preserved: main session, never re-labeled here.
+        return usageRows
+            .GroupBy(u => u.AgentType) // null key preserved: main session, never re-labeled here.
             .Select(g =>
             {
-                long billable = g.Sum(r => (long)(r.InputTokens ?? 0) + (r.OutputTokens ?? 0) + (r.CacheCreationTokens ?? 0));
+                long billable = g.Sum(u => (long)u.InputTokens + u.OutputTokens + u.CacheCreationTokens);
                 double share = totalBillable == 0 ? 0 : (double)billable / totalBillable;
 
                 return new AgentTokenStats(g.Key, g.Count(), billable, share);
@@ -208,95 +247,71 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
         return new PermissionsStats(requested, denied);
     }
 
-    private async Task<List<SessionStats>> BuildSessionsAsync(List<EventRow> rows, CancellationToken cancellationToken)
+    private static List<SessionStats> BuildSessions(List<EventRow> rows, List<UsageRow> usageRows)
     {
         List<SessionAggregate> aggregates = rows
             .Where(r => r.SessionId != null)
             .GroupBy(r => r.SessionId!)
-            .Select(g =>
-            {
-                // Context occupancy = input + cache_read + cache_creation of the *last*
-                // event carrying tokens_used (Stop, PostToolUse, SubagentStop) — the input
-                // tokens of a call *are* the context sent to the model, so this is exact and
-                // free. InputTokens != null is the marker of a tokens_used-bearing event.
-                EventRow? contextRow = g
-                    .Where(r => r.InputTokens != null)
-                    .OrderByDescending(r => r.Id)
-                    .FirstOrDefault();
-
-                long contextTokens = contextRow is null
-                    ? 0
-                    : (contextRow.InputTokens ?? 0) + (contextRow.CacheReadTokens ?? 0) + (contextRow.CacheCreationTokens ?? 0);
-
-                long billable = g.Sum(r => (long)(r.InputTokens ?? 0) + (r.OutputTokens ?? 0) + (r.CacheCreationTokens ?? 0));
-
-                return new SessionAggregate(
-                    g.Key,
-                    g.Select(r => r.Project).FirstOrDefault(p => p != null),
-                    g.Max(r => r.ReceivedAtUtc),
-                    g.Count(),
-                    billable,
-                    contextTokens);
-            })
+            .Select(g => new SessionAggregate(
+                g.Key,
+                g.Select(r => r.Project).FirstOrDefault(p => p != null),
+                g.Max(r => r.ReceivedAtUtc),
+                g.Count()))
             .ToList();
 
-        Dictionary<string, string?> modelBySession = await LoadModelsBySessionAsync(
-            aggregates.Select(a => a.SessionId).ToArray(),
-            cancellationToken);
+        Dictionary<string, (long ContextTokens, string? Model)> contextAndModelBySession = BuildContextAndModelBySession(usageRows);
+        Dictionary<string, long> billableTokensBySession = BuildBillableTokensBySession(usageRows);
 
         return aggregates
-            .Select(a => new SessionStats(
-                a.SessionId,
-                a.Project,
-                modelBySession.GetValueOrDefault(a.SessionId),
-                a.LastSeenAt,
-                a.ContextTokens,
-                a.Events,
-                a.BillableTokens))
+            .Select(a =>
+            {
+                (long contextTokens, string? model) = contextAndModelBySession.GetValueOrDefault(a.SessionId, (0, null));
+                long billableTokens = billableTokensBySession.GetValueOrDefault(a.SessionId, 0);
+
+                return new SessionStats(a.SessionId, a.Project, model, a.LastSeenAt, contextTokens, a.Events, billableTokens);
+            })
             .OrderByDescending(s => s.LastSeenAt)
             .ToList();
     }
 
     /// <summary>
-    /// Model isn't a stored column: it's read from the raw payload of each session's
-    /// SessionStart event and propagated by session_id join — computed at read time,
-    /// never persisted, exactly like context occupancy above.
+    /// Billable tokens per session, from <see cref="ModelUsage"/> — same reasoning as
+    /// <see cref="BuildTotals"/>. Unlike <see cref="BuildContextAndModelBySession"/> (which
+    /// deliberately excludes subagent usage because it lives in an isolated context window),
+    /// this sums every usage row for the session, main and delegated alike: it's a cost
+    /// figure, and delegation is still cost incurred by the session.
     /// </summary>
-    private async Task<Dictionary<string, string?>> LoadModelsBySessionAsync(
-        string[] sessionIds,
-        CancellationToken cancellationToken)
+    private static Dictionary<string, long> BuildBillableTokensBySession(List<UsageRow> usageRows)
     {
-        if (sessionIds.Length == 0)
-        {
-            return new Dictionary<string, string?>();
-        }
-
-        var sessionStarts = await context.HookEvents
-            .AsNoTracking()
-            .Where(e => e.EventName == "SessionStart" && e.SessionId != null && sessionIds.Contains(e.SessionId))
-            .Select(e => new { e.SessionId, e.Id, e.Payload })
-            .ToListAsync(cancellationToken);
-
-        return sessionStarts
-            .GroupBy(r => r.SessionId!)
-            .ToDictionary(g => g.Key, g => ExtractModel(g.OrderByDescending(r => r.Id).First().Payload));
+        return usageRows
+            .GroupBy(u => u.SessionId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(u => (long)u.InputTokens + u.OutputTokens + u.CacheCreationTokens));
     }
 
-    private static string? ExtractModel(string payload)
+    /// <summary>
+    /// Context occupancy and model, from <see cref="ModelUsage"/> instead of HookEvent:
+    /// no hook payload carries <c>tokens_used</c> in practice. Only the main session's own
+    /// usages (<c>AgentId is null</c>) are considered — a subagent runs its own isolated
+    /// context window, so folding its usage in here would misrepresent the main session's
+    /// occupancy. Context occupancy = input + cache_read + cache_creation of the *last*
+    /// usage: the input tokens of a call *are* the context sent to the model, so this is
+    /// exact and free. Model is read off that same last usage.
+    /// </summary>
+    private static Dictionary<string, (long ContextTokens, string? Model)> BuildContextAndModelBySession(List<UsageRow> usageRows)
     {
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(payload);
+        var result = new Dictionary<string, (long ContextTokens, string? Model)>();
 
-            return document.RootElement.TryGetProperty("model", out JsonElement model) &&
-                   model.ValueKind == JsonValueKind.String
-                ? model.GetString()
-                : null;
-        }
-        catch (JsonException)
+        foreach (IGrouping<string, UsageRow> group in usageRows.Where(u => u.AgentId is null).GroupBy(u => u.SessionId))
         {
-            return null;
+            UsageRow last = group.OrderByDescending(u => u.Id).First();
+            long contextTokens = (long)last.InputTokens + last.CacheReadTokens + last.CacheCreationTokens;
+
+            result[group.Key] = (contextTokens, last.Model);
         }
+
+        return result;
     }
 
     /// <summary>Nearest-rank percentile over an already-sorted sample. Null when there's no data.</summary>
@@ -322,17 +337,22 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
         string? AgentType,
         string? ToolName,
         int? DurationMs,
-        int? InputTokens,
-        int? OutputTokens,
-        int? CacheCreationTokens,
-        int? CacheReadTokens,
         string? Source);
 
     private sealed record SessionAggregate(
         string SessionId,
         string? Project,
         DateTime LastSeenAt,
-        int Events,
-        long BillableTokens,
-        long ContextTokens);
+        int Events);
+
+    private sealed record UsageRow(
+        long Id,
+        string SessionId,
+        string? AgentId,
+        string? AgentType,
+        string? Model,
+        int InputTokens,
+        int OutputTokens,
+        int CacheCreationTokens,
+        int CacheReadTokens);
 }

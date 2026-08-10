@@ -1,7 +1,9 @@
 using ControlPlane.Application.Abstractions.Clock;
 using ControlPlane.Application.Abstractions.Data;
+using ControlPlane.Application.Abstractions.Transcripts;
 using ControlPlane.Infrastructure.Clock;
 using ControlPlane.Infrastructure.Persistence;
+using ControlPlane.Infrastructure.Transcripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,13 @@ public static class DependencyInjection
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ControlPlaneDbContext>());
 
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+
+        // Same decoupling mechanism as the WebSocket event broadcaster (Api/Realtime): an
+        // in-memory queue drained by a BackgroundService, so a transcript read can never
+        // slow down or fail hook ingestion.
+        services.AddSingleton<TranscriptIngestionQueue>();
+        services.AddSingleton<ITranscriptIngestionQueue>(provider => provider.GetRequiredService<TranscriptIngestionQueue>());
+        services.AddHostedService<TranscriptIngestionBackgroundService>();
 
         return services;
     }

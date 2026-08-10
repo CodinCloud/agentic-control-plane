@@ -1,4 +1,6 @@
+using ControlPlane.Domain.AgentRuns;
 using ControlPlane.Domain.HookEvents;
+using ControlPlane.Domain.ModelUsages;
 using Microsoft.EntityFrameworkCore;
 
 namespace ControlPlane.Application.Abstractions.Data;
@@ -13,6 +15,14 @@ namespace ControlPlane.Application.Abstractions.Data;
 public interface IApplicationDbContext
 {
     DbSet<HookEvent> HookEvents { get; }
+
+    /// <summary>Token usage read from transcript JSONL files — a separate source from
+    /// <see cref="HookEvents"/>, see <see cref="ModelUsage"/>.</summary>
+    DbSet<ModelUsage> ModelUsages { get; }
+
+    /// <summary>One row per subagent spawn — brief, report, task description, spawn depth.
+    /// See <see cref="AgentRun"/>.</summary>
+    DbSet<AgentRun> AgentRuns { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

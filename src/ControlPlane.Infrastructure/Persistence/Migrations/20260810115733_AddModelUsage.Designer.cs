@@ -3,6 +3,7 @@ using System;
 using ControlPlane.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,76 +11,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ControlPlane.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ControlPlaneDbContext))]
-    partial class ControlPlaneDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810115733_AddModelUsage")]
+    partial class AddModelUsage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
-
-            modelBuilder.Entity("ControlPlane.Domain.AgentRuns.AgentRun", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("id");
-
-                    b.Property<string>("AgentId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT")
-                        .HasColumnName("agent_id");
-
-                    b.Property<string>("AgentType")
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT")
-                        .HasColumnName("agent_type");
-
-                    b.Property<string>("Brief")
-                        .IsRequired()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("brief");
-
-                    b.Property<bool>("BriefTruncated")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("brief_truncated");
-
-                    b.Property<string>("Report")
-                        .IsRequired()
-                        .HasColumnType("TEXT")
-                        .HasColumnName("report");
-
-                    b.Property<bool>("ReportTruncated")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("report_truncated");
-
-                    b.Property<string>("SessionId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT")
-                        .HasColumnName("session_id");
-
-                    b.Property<int?>("SpawnDepth")
-                        .HasColumnType("INTEGER")
-                        .HasColumnName("spawn_depth");
-
-                    b.Property<string>("TaskDescription")
-                        .HasMaxLength(2048)
-                        .HasColumnType("TEXT")
-                        .HasColumnName("task_description");
-
-                    b.HasKey("Id")
-                        .HasName("pk_agent_runs");
-
-                    b.HasIndex("AgentId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_agent_runs_agent_id");
-
-                    b.HasIndex("SessionId")
-                        .HasDatabaseName("ix_agent_runs_session_id");
-
-                    b.ToTable("agent_runs", (string)null);
-                });
 
             modelBuilder.Entity("ControlPlane.Domain.HookEvents.HookEvent", b =>
                 {

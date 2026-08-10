@@ -1,5 +1,6 @@
 import { Radar } from 'lucide-react';
 import { KpiDashboard, EventTimeline } from '@/features/observability';
+import { GanttChart } from '@/features/timeline';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
 
       <main className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-6">
         <KpiDashboard />
+        <GanttChart />
         <EventTimeline />
       </main>
     </div>

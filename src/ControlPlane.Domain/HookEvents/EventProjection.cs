@@ -18,7 +18,12 @@ public static class EventProjection
     {
         string? cwd = GetString(root, "cwd");
 
-        int? durationMs = GetInt(root, "execution_time_ms") ?? GetInt(root, "batch_execution_time_ms");
+        // duration_ms is the field actually observed in real payloads; execution_time_ms
+        // is what the docs advertise but doesn't appear in practice. Both are accepted,
+        // duration_ms first, plus the batch variant for PostToolUse batches.
+        int? durationMs = GetInt(root, "duration_ms")
+            ?? GetInt(root, "execution_time_ms")
+            ?? GetInt(root, "batch_execution_time_ms");
 
         int? inputTokens = GetNestedInt(root, "tokens_used", "input");
         int? outputTokens = GetNestedInt(root, "tokens_used", "output");
@@ -62,6 +67,14 @@ public static class EventProjection
             payload: payload,
             payloadTruncated: payloadTruncated);
     }
+
+    /// <summary>
+    /// Reads <c>transcript_path</c> straight off the raw payload. Deliberately not part of
+    /// <see cref="Project"/>/<see cref="HookEvent"/>: it isn't a typed column (see the
+    /// column table in the plan) but is needed by the transcript ingestion trigger, which
+    /// reads the same raw payload the ingestion handler already has in hand.
+    /// </summary>
+    public static string? ExtractTranscriptPath(JsonElement root) => GetString(root, "transcript_path");
 
     private static string? ExtractProjectLeaf(string? cwd)
     {
@@ -168,7 +181,13 @@ public static class EventProjection
         return null;
     }
 
-    private static (string Payload, bool Truncated) TruncatePayload(string rawJson)
+    /// <summary>
+    /// Byte-safe truncation at <see cref="PayloadMaxBytes"/> — never splits a multi-byte
+    /// UTF-8 sequence. Public because <c>RecordHookEventCommandHandler</c> reuses it to
+    /// truncate a raw body that failed to parse as JSON at all (the "Unmarshalable" event
+    /// name case), not just the payload of an otherwise well-formed event.
+    /// </summary>
+    public static (string Payload, bool Truncated) TruncatePayload(string rawJson)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(rawJson);
 
