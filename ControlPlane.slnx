@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ControlPlane.Api/ControlPlane.Api.csproj" />
+    <Project Path="src/ControlPlane.Application/ControlPlane.Application.csproj" />
+    <Project Path="src/ControlPlane.Domain/ControlPlane.Domain.csproj" />
+    <Project Path="src/ControlPlane.Infrastructure/ControlPlane.Infrastructure.csproj" />
+  </Folder>
+</Solution>

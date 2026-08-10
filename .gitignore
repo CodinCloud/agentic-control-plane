@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+*.user
+artifacts/
+
+# Base locale — les mesures sont propres à chaque poste, elles ne se versionnent pas
+*.db
+*.db-shm
+*.db-wal
+
+# Frontend
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Le SPA compilé est servi par l'API, mais reste un artefact de build
+src/ControlPlane.Api/wwwroot/
+
+# Outils
+.vs/
+.idea/
+.DS_Store

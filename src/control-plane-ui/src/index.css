@@ -1,0 +1,16 @@
+@import 'tailwindcss';
+
+/* Always-dark instrument: the Control Plane runs on a second screen. */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}

@@ -1,0 +1,50 @@
+{
+  "//": "Fragment à fusionner dans ~/.claude/settings.json (clé \"hooks\"), sans écraser les hooks existants.",
+  "//async": "async=true : le hook part en arrière-plan, la boucle n'attend jamais. timeout=2 : serveur éteint = échec silencieux, session intacte.",
+  "//volume": "PreToolUse est volontairement absent : il doublerait le volume sans rien apprendre que PostToolUse et PermissionDenied ne disent déjà.",
+
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "SessionEnd": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "UserPromptSubmit": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "Stop": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "StopFailure": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "SubagentStart": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "SubagentStop": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PreCompact": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PostCompact": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PermissionRequest": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PermissionDenied": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "Notification": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ]
+  }
+}
