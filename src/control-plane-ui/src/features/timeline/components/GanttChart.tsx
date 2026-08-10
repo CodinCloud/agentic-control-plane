@@ -14,35 +14,50 @@ import { TimelineAxis } from './TimelineAxis';
 import { RangeSelector } from './RangeSelector';
 import { SessionSelector } from './SessionSelector';
 import { AgentDetailPanel } from './AgentDetailPanel';
+import { AgentChips } from './AgentChips';
+import { AgentTrack } from './AgentTrack';
 
 const DEFAULT_RANGE: TimelineRange = 'session';
 const SKELETON_ROWS = 4;
 
+export interface GanttChartProps {
+  /**
+   * Session imposée — écran d'analyse. Absent : la portée est pilotée par le
+   * filtre du store, c'est-à-dire la tour de contrôle.
+   */
+  lockedSessionId?: string;
+  /** Agent dont la piste de zoom est ouverte. Porté par l'URL, pas par un état local. */
+  selectedAgentId: string | null;
+  onSelectAgent: (agentId: string | null) => void;
+}
+
 /**
- * Read-only Gantt of the agent lifecycle across every session touching the
- * window — one visual group per session (bandeau + its own lanes), stacked,
- * sharing one time axis so parallel sessions stay comparable at a glance.
- * No drag, no edit, no dependencies. See plans/003-multi-sessions.md.
+ * Gantt du cycle de vie des agents — un groupe visuel par session, empilés, sur
+ * un axe de temps commun pour que deux sessions parallèles restent comparables.
+ * Lecture seule : aucun glisser-déposer, aucune édition.
  *
- * Le filtre par défaut est « sessions actives » : ce qui tourne maintenant est
- * ce qu'on regarde. Conséquence assumée — quand rien n'a bougé depuis 5 minutes
- * l'écran est vide, d'où l'état vide dédié qui offre la bascule vers toutes les
- * sessions plutôt que de laisser croire à une base vide.
+ * Sous chaque session, un bandeau de puces (une par instance d'agent) ; cliquer
+ * une puce ouvre la piste de zoom de cet agent, avec ses appels d'outil. Le
+ * Gantt lui-même n'est jamais masqué : vue d'ensemble et vue rapprochée
+ * coexistent. Voir plans/005-gantt-exploitable.md.
  */
-export function GanttChart() {
+export function GanttChart({ lockedSessionId, selectedAgentId, onSelectAgent }: GanttChartProps) {
   const [range, setRange] = useState<TimelineRange>(DEFAULT_RANGE);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const sessionFilter = useAppStore((state) => state.timelineSessionFilter);
-  const setSessionFilter = useAppStore((state) => state.setTimelineSessionFilter);
+  const [detailAgentId, setDetailAgentId] = useState<string | null>(null);
+  const storeFilter = useAppStore((state) => state.timelineSessionFilter);
+  const setStoreFilter = useAppStore((state) => state.setTimelineSessionFilter);
+
+  // Sur l'écran d'analyse la session est imposée : le filtre du store ne doit
+  // ni s'appliquer ni être offert.
+  const sessionFilter = lockedSessionId ?? storeFilter;
+  const locked = lockedSessionId !== undefined;
+
   const { timeline, isLoading, isError, error, refetch, streamStatus, sessionOptions } = useTimeline(
     range,
     sessionFilter,
   );
   const now = useNowTick();
 
-  // Tout ce qui suit se calcule sur les sessions *visibles*, jamais sur la
-  // réponse brute : l'axe, l'épaisseur des barres et l'état vide doivent
-  // refléter ce qui est à l'écran, pas ce que le serveur a renvoyé.
   const sessions = useMemo(
     () => TimelineDomain.applySessionFilter(timeline?.sessions ?? [], sessionFilter),
     [timeline?.sessions, sessionFilter],
@@ -55,30 +70,19 @@ export function GanttChart() {
 
   const hasAnyLane = useMemo(() => sessions.some((session) => session.lanes.length > 0), [sessions]);
 
-  // The axis fits everything actually on screen — every session's own
-  // bounds plus every lane across every session (TimelineDomain.fitWindowToSessions)
-  // — not the server's declared window, which defaults to a 24h lookback for
-  // "Session entière" and would crush a few hours of real data into a
-  // sliver. Falls back to the server window (still stretched to "now" for an
-  // ongoing session) only when there is nothing to fit against. Computed
-  // once per render (not per session) and re-derived on every `now` tick so
-  // an ongoing bar's right edge keeps tracking the local clock.
   const effectiveWindow = useMemo(() => {
     if (!timeline) return undefined;
     return TimelineDomain.fitWindowToSessions(sessions, now) ?? TimelineDomain.extendWindowToNow(timeline.window, now);
   }, [timeline, sessions, now]);
 
-  const handleSelectAgent = useCallback((agentId: string) => {
-    setSelectedAgentId(agentId);
-  }, []);
+  const handleSelectAgent = useCallback((agentId: string) => onSelectAgent(agentId), [onSelectAgent]);
+  const handleClosePanel = useCallback(() => setDetailAgentId(null), []);
 
-  const handleClosePanel = useCallback(() => setSelectedAgentId(null), []);
-
-  // Rien à l'écran alors que le serveur a bien renvoyé des sessions : c'est le
-  // filtre qui les masque, pas la base qui est vide. La distinction change le
-  // message et l'issue proposée.
   const hiddenByActiveFilter =
-    sessionFilter === TIMELINE_ACTIVE_SESSIONS && sessions.length === 0 && (timeline?.sessions.length ?? 0) > 0;
+    !locked &&
+    sessionFilter === TIMELINE_ACTIVE_SESSIONS &&
+    sessions.length === 0 &&
+    (timeline?.sessions.length ?? 0) > 0;
 
   return (
     <>
@@ -88,7 +92,9 @@ export function GanttChart() {
         action={
           <div className="flex items-center gap-2">
             <StreamStatusIndicator status={streamStatus} />
-            <SessionSelector value={sessionFilter} onChange={setSessionFilter} options={sessionOptions} />
+            {!locked ? (
+              <SessionSelector value={sessionFilter} onChange={setStoreFilter} options={sessionOptions} />
+            ) : null}
             <RangeSelector value={range} onChange={setRange} />
           </div>
         }
@@ -116,7 +122,7 @@ export function GanttChart() {
             title="Aucune session active"
             description="Rien n'a émis d'activité depuis moins de 5 minutes. Les sessions plus anciennes sont masquées par le filtre."
             action={
-              <Button variant="outline" size="sm" onClick={() => setSessionFilter(TIMELINE_ALL_SESSIONS)}>
+              <Button variant="outline" size="sm" onClick={() => setStoreFilter(TIMELINE_ALL_SESSIONS)}>
                 Voir toutes les sessions
               </Button>
             }
@@ -128,22 +134,40 @@ export function GanttChart() {
         ) : (
           <div className="max-h-[72vh] overflow-y-auto">
             {hasAnyLane ? <TimelineAxis window={effectiveWindow ?? timeline.window} /> : null}
-            <div className="flex flex-col gap-4">
-              {sessions.map((session) => (
-                <SessionGroup
-                  key={session.sessionId}
-                  session={session}
-                  window={effectiveWindow ?? timeline.window}
-                  maxBillableTokens={maxBillableTokens}
-                  onSelectAgent={handleSelectAgent}
-                />
-              ))}
+
+            <div className="flex flex-col gap-6">
+              {sessions.map((session) => {
+                // Un agentId est globalement unique : seule la session qui le
+                // contient ouvre sa piste.
+                const trackAgentId =
+                  selectedAgentId !== null &&
+                  (selectedAgentId === 'main' || session.lanes.some((lane) => lane.agentId === selectedAgentId))
+                    ? selectedAgentId
+                    : null;
+
+                return (
+                  <div key={session.sessionId} className="flex flex-col gap-3">
+                    <SessionGroup
+                      session={session}
+                      window={effectiveWindow ?? timeline.window}
+                      maxBillableTokens={maxBillableTokens}
+                      onSelectAgent={handleSelectAgent}
+                    />
+
+                    <AgentChips
+                      session={session}
+                      selectedAgentId={trackAgentId}
+                      onSelect={onSelectAgent}
+                    />
+
+                    {trackAgentId ? (
+                      <AgentTrack session={session} agentId={trackAgentId} onOpenDetail={setDetailAgentId} />
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Only shown once *no* session anywhere has an agent — a single
-                session without one already gets its own discrete note in
-                SessionGroup, this must not stack on top of it (plan
-                §"Ce qu'il faut faire"). */}
             {!hasAnyLane ? (
               <div className="mt-3">
                 <EmptyState
@@ -156,7 +180,7 @@ export function GanttChart() {
         )}
       </SectionCard>
 
-      <AgentDetailPanel agentId={selectedAgentId} onClose={handleClosePanel} />
+      <AgentDetailPanel agentId={detailAgentId} onClose={handleClosePanel} />
     </>
   );
 }

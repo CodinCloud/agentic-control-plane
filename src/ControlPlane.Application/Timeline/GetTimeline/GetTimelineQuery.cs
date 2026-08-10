@@ -55,7 +55,9 @@ public sealed record SessionSummary(
     bool IsActive,
     IReadOnlyList<AgentLane> Lanes);
 
-/// <summary>One agent's bar. <c>EndedAt</c> null = still in progress, see <see cref="GetTimelineQueryHandler"/>.</summary>
+/// <summary>One agent's bar. <c>EndedAt</c> null = still in progress, see <see cref="GetTimelineQueryHandler"/>.
+/// <para><c>CostUsd</c> est le coût équivalent API de ce seul run — c'est lui qui permet à
+/// l'écran d'analyse de ventiler le coût par agent sans requête supplémentaire.</para></summary>
 public sealed record AgentLane(
     string AgentId,
     string? AgentType,
@@ -66,6 +68,7 @@ public sealed record AgentLane(
     int Messages,
     long BillableTokens,
     long CacheReadTokens,
+    decimal? CostUsd,
     string? Model,
     int? SpawnDepth);
 
@@ -233,7 +236,7 @@ internal sealed class GetTimelineQueryHandler(
             .DefaultIfEmpty(startedAt)
             .Max();
 
-        List<AgentLane> lanes = BuildLanes(sessionUsage, runsByAgentId, closedAgentIds, now)
+        List<AgentLane> lanes = BuildLanes(sessionUsage, runsByAgentId, closedAgentIds, now, pricing)
             .OrderBy(lane => lane.StartedAt)
             .ToList();
 
@@ -249,7 +252,8 @@ internal sealed class GetTimelineQueryHandler(
         List<UsageRow> usageRows,
         Dictionary<string, AgentRunLabel> runsByAgentId,
         HashSet<string> closedAgentIds,
-        DateTime now)
+        DateTime now,
+        PricingTable pricing)
     {
         return usageRows
             .Where(u => u.AgentId is not null)
@@ -276,6 +280,7 @@ internal sealed class GetTimelineQueryHandler(
                     group.Count(),
                     billable,
                     cacheRead,
+                    SumCost(group, pricing),
                     last.Model,
                     label?.SpawnDepth);
             })

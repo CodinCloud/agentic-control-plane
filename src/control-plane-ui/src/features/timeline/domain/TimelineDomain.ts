@@ -99,6 +99,41 @@ export class TimelineDomain {
     return { leftPct, widthPct: Math.min(widthPct, 100 - leftPct) };
   }
 
+  /**
+   * Position d'un instant ponctuel — un appel d'outil — en pourcentage de la
+   * fenêtre. Contrairement à `barPosition`, il n'y a pas de largeur : un glyphe
+   * marque un moment, pas une durée. Borné à [0, 100] pour qu'un événement
+   * légèrement hors fenêtre reste visible à son bord plutôt que de disparaître.
+   */
+  static pointPositionPct(at: string, window: Pick<TimelineWindow, 'since' | 'until'>): number {
+    const sinceMs = new Date(window.since).getTime();
+    const untilMs = new Date(window.until).getTime();
+    const span = untilMs - sinceMs;
+    if (!(span > 0)) return 0;
+
+    return TimelineDomain.clamp(((new Date(at).getTime() - sinceMs) / span) * 100, 0, 100);
+  }
+
+  /**
+   * Fenêtre propre à un agent, sur laquelle sa piste de zoom se recale. Un agent
+   * encore en cours s'étend jusqu'à maintenant. Une marge évite que le premier et
+   * le dernier glyphe ne collent aux bords.
+   */
+  static agentWindow(
+    lane: Pick<AgentLane, 'startedAt' | 'endedAt'>,
+    nowMs: number,
+  ): Pick<TimelineWindow, 'since' | 'until'> {
+    const startMs = new Date(lane.startedAt).getTime();
+    const endMs = lane.endedAt ? new Date(lane.endedAt).getTime() : nowMs;
+    const span = Math.max(endMs - startMs, 1);
+    const margin = span * TimelineDomain.WINDOW_FIT_MARGIN_RATIO;
+
+    return {
+      since: new Date(startMs - margin).toISOString(),
+      until: new Date(endMs + margin).toISOString(),
+    };
+  }
+
   /** Fresher than the server's `durationMs` for an ongoing lane, which may lag behind "now". */
   static effectiveDurationMs(lane: Pick<AgentLane, 'startedAt' | 'endedAt' | 'durationMs'>): number {
     if (!TimelineDomain.isOngoing(lane)) return lane.durationMs;

@@ -1,7 +1,7 @@
 import { HttpError, Result, type ResultError } from '@/core';
 import type { ITimelineRepository } from '../api/TimelineRepository';
 import { timelineRepository } from '../api/TimelineRepository';
-import type { AgentRunDetail, TimelineResponse } from '../timelineTypes';
+import type { AgentRunDetail, TimelineResponse, ToolCallsResponse } from '../timelineTypes';
 
 export interface TimelineError extends ResultError {}
 
@@ -29,6 +29,18 @@ class TimelineService {
     try {
       const detail = await this.repository.getAgentRunDetail(agentId);
       return Result.success(detail);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  async getToolCalls(sessionId: string, agentId?: string): Promise<Result<ToolCallsResponse, TimelineError>> {
+    if (!sessionId?.trim()) {
+      return Result.failure({ code: 'INVALID_SESSION_ID', message: 'sessionId is required' });
+    }
+    try {
+      const calls = await this.repository.getToolCalls(sessionId, agentId);
+      return Result.success(calls);
     } catch (error) {
       return this.handleError(error);
     }

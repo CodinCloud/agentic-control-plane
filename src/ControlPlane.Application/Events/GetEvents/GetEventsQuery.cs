@@ -12,17 +12,27 @@ namespace ControlPlane.Application.Events.GetEvents;
 /// <see cref="HookEvent.Id"/> (<see cref="Before"/>), not an offset: the feed is continuous
 /// and an offset would drift as new events keep arriving.
 /// </summary>
+/// <param name="AgentType">Le <b>gabarit</b> (backend-dev…), pas une identité : un même type
+/// est instancié à neuf à chaque spawn.</param>
+/// <param name="AgentId">L'<b>instance</b>. C'est ce qu'il faut pour isoler un run précis —
+/// filtrer par type mélangerait des exécutions sans rapport, y compris concurrentes.</param>
 public sealed record GetEventsQuery(
     string? SessionId,
     string? Project,
     string? EventName,
     string? AgentType,
+    string? AgentId,
     string? ToolName,
     long? Before,
     int Limit) : IQuery<GetEventsResponse>
 {
     public const int DefaultLimit = 200;
     public const int MaxLimit = 1000;
+
+    /// <summary>Une chaîne de requête ne sait pas transporter un null : cette sentinelle vaut
+    /// « sans agent », c'est-à-dire la session principale. Déjà en vigueur pour
+    /// <see cref="AgentType"/>, réutilisée telle quelle pour <see cref="AgentId"/>.</summary>
+    public const string MainSessionSentinel = "main";
 }
 
 public sealed record GetEventsResponse(IReadOnlyList<EventListItem> Items, long? NextBefore);
@@ -81,9 +91,17 @@ internal sealed class GetEventsQueryHandler(IApplicationDbContext context) : IQu
         // through a query string. Any other value filters by strict equality.
         if (!string.IsNullOrWhiteSpace(query.AgentType))
         {
-            events = query.AgentType == "main"
+            events = query.AgentType == GetEventsQuery.MainSessionSentinel
                 ? events.Where(e => e.AgentType == null)
                 : events.Where(e => e.AgentType == query.AgentType);
+        }
+
+        // Filtre par instance, pas par gabarit — voir la doc de GetEventsQuery.AgentId.
+        if (!string.IsNullOrWhiteSpace(query.AgentId))
+        {
+            events = query.AgentId == GetEventsQuery.MainSessionSentinel
+                ? events.Where(e => e.AgentId == null)
+                : events.Where(e => e.AgentId == query.AgentId);
         }
 
         if (query.Before is { } before)

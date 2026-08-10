@@ -17,6 +17,7 @@ internal sealed class GetEvents : IEndpoint
                 string? project,
                 string? eventName,
                 string? agentType,
+                string? agentId,
                 string? toolName,
                 long? before,
                 int? limit,
@@ -28,6 +29,7 @@ internal sealed class GetEvents : IEndpoint
                     project,
                     eventName,
                     agentType,
+                    agentId,
                     toolName,
                     before,
                     limit ?? GetEventsQuery.DefaultLimit);
