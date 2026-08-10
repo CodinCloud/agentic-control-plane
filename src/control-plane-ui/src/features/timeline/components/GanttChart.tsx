@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { useTimeline, type TimelineRange } from '../hooks/useTimeline';
 import { useNowTick } from '../hooks/useNowTick';
 import { TimelineDomain } from '../domain/TimelineDomain';
+import { TIMELINE_ACTIVE_SESSIONS, TIMELINE_ALL_SESSIONS } from '../timelineTypes';
 import { SessionGroup } from './SessionGroup';
 import { TimelineAxis } from './TimelineAxis';
 import { RangeSelector } from './RangeSelector';
@@ -22,27 +23,37 @@ const SKELETON_ROWS = 4;
  * window — one visual group per session (bandeau + its own lanes), stacked,
  * sharing one time axis so parallel sessions stay comparable at a glance.
  * No drag, no edit, no dependencies. See plans/003-multi-sessions.md.
+ *
+ * Le filtre par défaut est « sessions actives » : ce qui tourne maintenant est
+ * ce qu'on regarde. Conséquence assumée — quand rien n'a bougé depuis 5 minutes
+ * l'écran est vide, d'où l'état vide dédié qui offre la bascule vers toutes les
+ * sessions plutôt que de laisser croire à une base vide.
  */
 export function GanttChart() {
   const [range, setRange] = useState<TimelineRange>(DEFAULT_RANGE);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const selectedSessionId = useAppStore((state) => state.timelineSessionId);
-  const setSelectedSessionId = useAppStore((state) => state.setTimelineSessionId);
+  const sessionFilter = useAppStore((state) => state.timelineSessionFilter);
+  const setSessionFilter = useAppStore((state) => state.setTimelineSessionFilter);
   const { timeline, isLoading, isError, error, refetch, streamStatus, sessionOptions } = useTimeline(
     range,
-    selectedSessionId,
+    sessionFilter,
   );
   const now = useNowTick();
 
-  const maxBillableTokens = useMemo(
-    () => TimelineDomain.maxBillableTokens(timeline?.sessions.flatMap((session) => session.lanes) ?? []),
-    [timeline?.sessions],
+  // Tout ce qui suit se calcule sur les sessions *visibles*, jamais sur la
+  // réponse brute : l'axe, l'épaisseur des barres et l'état vide doivent
+  // refléter ce qui est à l'écran, pas ce que le serveur a renvoyé.
+  const sessions = useMemo(
+    () => TimelineDomain.applySessionFilter(timeline?.sessions ?? [], sessionFilter),
+    [timeline?.sessions, sessionFilter],
   );
 
-  const hasAnyLane = useMemo(
-    () => (timeline?.sessions ?? []).some((session) => session.lanes.length > 0),
-    [timeline?.sessions],
+  const maxBillableTokens = useMemo(
+    () => TimelineDomain.maxBillableTokens(sessions.flatMap((session) => session.lanes)),
+    [sessions],
   );
+
+  const hasAnyLane = useMemo(() => sessions.some((session) => session.lanes.length > 0), [sessions]);
 
   // The axis fits everything actually on screen — every session's own
   // bounds plus every lane across every session (TimelineDomain.fitWindowToSessions)
@@ -54,16 +65,20 @@ export function GanttChart() {
   // an ongoing bar's right edge keeps tracking the local clock.
   const effectiveWindow = useMemo(() => {
     if (!timeline) return undefined;
-    return (
-      TimelineDomain.fitWindowToSessions(timeline.sessions, now) ?? TimelineDomain.extendWindowToNow(timeline.window, now)
-    );
-  }, [timeline, now]);
+    return TimelineDomain.fitWindowToSessions(sessions, now) ?? TimelineDomain.extendWindowToNow(timeline.window, now);
+  }, [timeline, sessions, now]);
 
   const handleSelectAgent = useCallback((agentId: string) => {
     setSelectedAgentId(agentId);
   }, []);
 
   const handleClosePanel = useCallback(() => setSelectedAgentId(null), []);
+
+  // Rien à l'écran alors que le serveur a bien renvoyé des sessions : c'est le
+  // filtre qui les masque, pas la base qui est vide. La distinction change le
+  // message et l'issue proposée.
+  const hiddenByActiveFilter =
+    sessionFilter === TIMELINE_ACTIVE_SESSIONS && sessions.length === 0 && (timeline?.sessions.length ?? 0) > 0;
 
   return (
     <>
@@ -73,7 +88,7 @@ export function GanttChart() {
         action={
           <div className="flex items-center gap-2">
             <StreamStatusIndicator status={streamStatus} />
-            <SessionSelector value={selectedSessionId} onChange={setSelectedSessionId} options={sessionOptions} />
+            <SessionSelector value={sessionFilter} onChange={setSessionFilter} options={sessionOptions} />
             <RangeSelector value={range} onChange={setRange} />
           </div>
         }
@@ -96,7 +111,17 @@ export function GanttChart() {
               </Button>
             }
           />
-        ) : timeline.sessions.length === 0 ? (
+        ) : hiddenByActiveFilter ? (
+          <EmptyState
+            title="Aucune session active"
+            description="Rien n'a émis d'activité depuis moins de 5 minutes. Les sessions plus anciennes sont masquées par le filtre."
+            action={
+              <Button variant="outline" size="sm" onClick={() => setSessionFilter(TIMELINE_ALL_SESSIONS)}>
+                Voir toutes les sessions
+              </Button>
+            }
+          />
+        ) : sessions.length === 0 ? (
           <div className="rounded-lg border border-dashed border-neutral-800 bg-neutral-900/20 p-3 text-sm text-neutral-500">
             Aucune session dans cette fenêtre — base vide.
           </div>
@@ -104,7 +129,7 @@ export function GanttChart() {
           <div className="max-h-[72vh] overflow-y-auto">
             {hasAnyLane ? <TimelineAxis window={effectiveWindow ?? timeline.window} /> : null}
             <div className="flex flex-col gap-4">
-              {timeline.sessions.map((session) => (
+              {sessions.map((session) => (
                 <SessionGroup
                   key={session.sessionId}
                   session={session}

@@ -39,6 +39,29 @@ Tout le reste est subordonné à ça.
 
 Ces trois derniers KPI restent **calculés côté backend** et exposés par `GET /api/stats` : la donnée continue d'être collectée, seul l'affichage disparaît. Le jour où l'un d'eux redevient une question, il ne reste qu'à le rebrancher.
 
+## Ce qu'on capte
+
+Liste confrontée à [la doc officielle](https://code.claude.com/docs/en/hooks) le **2026-08-10**. Elle recense **31 événements** ; on en capte **16**. Contrairement à ce qu'on soupçonnait, aucun nom câblé n'était périmé — tous existent.
+
+Capter est bon marché (hook `async`, aucune latence ajoutée) et *un événement perdu l'est pour toujours* : le seuil d'inclusion est donc plus bas que celui d'affichage. Ce qui est capté n'a pas vocation à être montré.
+
+**Captés** — cycle de vie de la session (`SessionStart`, `SessionEnd`), du tour (`UserPromptSubmit`, `UserPromptExpansion`, `Stop`, `StopFailure`), des outils (`PostToolUse`, `PostToolUseFailure`, `PostToolBatch`), des sous-agents (`SubagentStart`, `SubagentStop`), du contexte (`PreCompact`, `PostCompact`), des permissions (`PermissionRequest`, `PermissionDenied`) et `Notification`.
+
+**Écartés délibérément :**
+
+| Événement | Pourquoi |
+|---|---|
+| `PreToolUse` | Doublerait le volume sans rien apprendre que `PostToolUse` et `PostToolUseFailure` ne disent déjà. |
+| `MessageDisplay` | Se déclenche pendant l'affichage du texte — volume énorme, valeur nulle pour une question de méthode. |
+| `TaskCreated`, `TaskCompleted` | Redondants : `TaskCreate`/`TaskUpdate` arrivent déjà comme appels d'outil via `PostToolUse`. |
+| `InstructionsLoaded`, `ConfigChange`, `Setup` | Composition du contexte, pas découpage du travail. À reconsidérer si la question devient « qu'est-ce qui remplit mon contexte ». |
+| `CwdChanged`, `DirectoryAdded`, `FileChanged` | Bruit d'environnement. |
+| `TeammateIdle`, `WorktreeCreate`, `WorktreeRemove`, `Elicitation`, `ElicitationResult` | Ne correspondent à aucune pratique de ce workflow. |
+
+**Trois événements câblés n'ont jamais été observés** en base : `StopFailure` (erreur d'API), `PostCompact` et `PermissionDenied` (classifieur du mode auto). Ce n'est pas un défaut de câblage — ils sont rares, et `PreCompact` comme `PermissionRequest` arrivent bien, eux. Conséquence à connaître : le KPI « frottement des permissions » affichait structurellement un taux de refus de 0 %, puisque son numérateur ne se déclenchait jamais.
+
+Aucune liste blanche à l'ingestion : `EventProjection` lit `hook_event_name` génériquement. Ajouter un événement se fait donc entièrement dans `~/.claude/settings.json`, sans toucher au backend.
+
 ## Doctrine de layout
 
 - **Pleine largeur**, jamais une colonne centrée. Le Gantt a besoin d'espace horizontal : sa largeur *est* du temps, l'écraser détruit l'information.

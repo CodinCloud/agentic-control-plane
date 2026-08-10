@@ -1,7 +1,8 @@
 {
   "//": "Fragment à fusionner dans ~/.claude/settings.json (clé \"hooks\"), sans écraser les hooks existants.",
   "//async": "async=true : le hook part en arrière-plan, la boucle n'attend jamais. timeout=2 : serveur éteint = échec silencieux, session intacte.",
-  "//volume": "PreToolUse est volontairement absent : il doublerait le volume sans rien apprendre que PostToolUse et PermissionDenied ne disent déjà.",
+  "//audit": "Liste confrontée à code.claude.com/docs/en/hooks le 2026-08-10. Les 31 événements de la doc existent ; on en capte 16. Voir CONTEXT.md §\"Ce qu'on capte\" pour le raisonnement d'inclusion et d'exclusion.",
+  "//volume": "PreToolUse est volontairement absent : il doublerait le volume sans rien apprendre que PostToolUse, PostToolUseFailure et PermissionRequest ne disent déjà.",
 
   "hooks": {
     "SessionStart": [
@@ -13,10 +14,16 @@
     "UserPromptSubmit": [
       { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
     ],
+    "UserPromptExpansion": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
     "PostToolUse": [
       { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
     ],
     "PostToolUseFailure": [
+      { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
+    ],
+    "PostToolBatch": [
       { "matcher": "", "hooks": [{ "type": "http", "url": "http://localhost:4317/events", "async": true, "timeout": 2 }] }
     ],
     "Stop": [

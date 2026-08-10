@@ -17,16 +17,31 @@ const TOOL_EMOJI: Record<string, string> = {
   BashOutput: '📤',
 };
 
+/**
+ * Un emoji par événement capté (voir hooks/claude-hooks.json). `Unmarshalable`
+ * n'est pas un hook Claude Code : c'est le nom que l'ingestion se donne à
+ * elle-même quand un corps n'est même pas du JSON valide — il apparaît donc
+ * bien dans le flux et mérite son icône.
+ */
 const EVENT_EMOJI: Record<string, string> = {
-  PreToolUse: '➡️',
-  PostToolUse: '⬅️',
-  Notification: '🔔',
-  Stop: '🏁',
-  SubagentStop: '🤖',
-  PreCompact: '🗜️',
-  UserPromptSubmit: '💬',
   SessionStart: '🟢',
   SessionEnd: '🔴',
+  UserPromptSubmit: '💬',
+  UserPromptExpansion: '⌨️',
+  PreToolUse: '➡️',
+  PostToolUse: '⬅️',
+  PostToolUseFailure: '⚠️',
+  PostToolBatch: '📦',
+  PermissionRequest: '🔐',
+  PermissionDenied: '⛔',
+  SubagentStart: '🚀',
+  SubagentStop: '🤖',
+  Stop: '🏁',
+  StopFailure: '💥',
+  PreCompact: '🗜️',
+  PostCompact: '📉',
+  Notification: '🔔',
+  Unmarshalable: '❓',
 };
 
 const DEFAULT_TOOL_EMOJI = '🔧';

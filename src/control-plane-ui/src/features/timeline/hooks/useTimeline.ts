@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEventStream } from '@/features/observability';
 import { timelineService } from '../application/TimelineService';
-import type { TimelineSessionOption } from '../timelineTypes';
+import { TimelineDomain } from '../domain/TimelineDomain';
+import type { TimelineSessionFilter, TimelineSessionOption } from '../timelineTypes';
 
 const TIMELINE_STALE_TIME_MS = 30 * 1000;
 
@@ -15,35 +16,24 @@ const TIMELINE_STALE_TIME_MS = 30 * 1000;
  */
 const TIMELINE_REFRESH_DEBOUNCE_MS = 2000;
 
+/**
+ * Deux plages, pas trois : « dernier tour » a été retiré, il ne servait pas.
+ * Sa disparition emporte tout le mécanisme qui l'alimentait — l'état
+ * `lastTurnStartedAt` et son repli par approximation. Le champ reste dans le
+ * contrat d'API (`TimelineWindow.lastTurnStartedAt`), simplement plus lu ici.
+ */
 export const TIMELINE_RANGES = [
   { value: 'session', label: 'Session entière' },
   { value: 'hour', label: 'Dernière heure' },
-  { value: 'turn', label: 'Dernier tour' },
 ] as const;
 
 export type TimelineRange = (typeof TIMELINE_RANGES)[number]['value'];
 
-/**
- * Fallback lookback for "dernier tour" when the server reports no
- * `lastTurnStartedAt` (no `UserPromptSubmit` fired in the resolved session
- * yet — e.g. fresh database). Not the nominal path: once a real turn
- * boundary is known, `since` is that exact timestamp, not an approximation.
- */
-const TURN_FALLBACK_LOOKBACK_MS = 15 * 60 * 1000;
 const HOUR_LOOKBACK_MS = 60 * 60 * 1000;
 
-/**
- * `since` values for the "dernière heure" / "dernier tour" range options.
- * "Session entière" omits `since` so the server returns its full window.
- * "Dernier tour" uses the server's own turn boundary (`lastTurnStartedAt`,
- * carried over from the most recent successful fetch of any range) once
- * known; before that — or if the session has no turn yet — it falls back
- * to a lookback.
- */
-function sinceFromRange(range: TimelineRange, lastTurnStartedAt: string | null): string | undefined {
-  if (range === 'session') return undefined;
-  if (range === 'hour') return new Date(Date.now() - HOUR_LOOKBACK_MS).toISOString();
-  return lastTurnStartedAt ?? new Date(Date.now() - TURN_FALLBACK_LOOKBACK_MS).toISOString();
+/** « Session entière » omet `since` et laisse le serveur renvoyer sa fenêtre complète. */
+function sinceFromRange(range: TimelineRange): string | undefined {
+  return range === 'session' ? undefined : new Date(Date.now() - HOUR_LOOKBACK_MS).toISOString();
 }
 
 /**
@@ -52,29 +42,30 @@ function sinceFromRange(range: TimelineRange, lastTurnStartedAt: string | null):
  * own visual growth between refetches is handled client-side in
  * TimelineDomain.extendWindowToNow.
  *
- * `sessionId`: `null` = "Toutes les sessions" (plan decision #1); a value
- * narrows the request to that one session (plan §"Contrat d'API").
+ * `sessionFilter` : les deux sentinelles (actives / toutes) se résolvent côté
+ * client sur `isActive` et n'atteignent jamais le serveur — d'où la même
+ * requête pour les deux, et donc aucun refetch quand on bascule de l'une à
+ * l'autre. Un `sessionId` réel, lui, restreint la requête.
  */
-export function useTimeline(range: TimelineRange, sessionId: string | null) {
+export function useTimeline(range: TimelineRange, sessionFilter: TimelineSessionFilter) {
   const queryClient = useQueryClient();
-  const [lastTurnStartedAt, setLastTurnStartedAt] = useState<string | null>(null);
   const [sessionOptions, setSessionOptions] = useState<TimelineSessionOption[]>([]);
 
-  // `lastTurnStartedAt` only refines the "dernier tour" boundary — it must
-  // never enter the query key. The key identifies *what* is being fetched
-  // (the range and the session filter); `since` is *how* to fetch it right
-  // now, and is computed fresh inside `queryFn` at call time so a
-  // stream-driven invalidation always refetches with an up-to-date lookback
-  // instead of minting a new cache entry (and a fresh loading state) on
-  // every WebSocket event. This is the exact regression the plan warns
-  // against (§"Piège à éviter") — no computed timestamp belongs in the key.
+  const sessionId = TimelineDomain.toServerSessionId(sessionFilter);
+
+  // La clé identifie *ce qui* est demandé au serveur (la plage et la session
+  // effectivement filtrée), jamais un horodatage calculé : `since` est le
+  // *comment* et se recalcule dans `queryFn` à l'appel, pour qu'une
+  // invalidation déclenchée par le flux refetch avec un lookback à jour au
+  // lieu de créer une nouvelle entrée de cache — et un état de chargement —
+  // à chaque événement WebSocket. C'est la régression contre laquelle le plan
+  // met en garde (§"Piège à éviter").
   const queryKey = ['timeline', 'list', range, sessionId] as const;
 
   const query = useQuery({
     queryKey,
     queryFn: async () => {
-      const since = sinceFromRange(range, lastTurnStartedAt);
-      const result = await timelineService.getTimeline(since, sessionId ?? undefined);
+      const result = await timelineService.getTimeline(sinceFromRange(range), sessionId ?? undefined);
       if (result.isError()) throw new Error(result.getError().message);
       return result.getValue();
     },
@@ -83,14 +74,6 @@ export function useTimeline(range: TimelineRange, sessionId: string | null) {
     // instead of dropping straight to skeletons — see plan bug #1.
     placeholderData: keepPreviousData,
   });
-
-  // `lastTurnStartedAt` is session-wide (independent of `since`), so any
-  // successful fetch — whichever range triggered it — can refine the exact
-  // "dernier tour" boundary for the next `turn` query.
-  useEffect(() => {
-    const fetched = query.data?.window.lastTurnStartedAt ?? null;
-    setLastTurnStartedAt((current) => (current === fetched ? current : fetched));
-  }, [query.data?.window.lastTurnStartedAt]);
 
   // The session selector needs the *full* list of sessions to offer, but a
   // filtered fetch only ever returns the one selected session (plan §"Contrat

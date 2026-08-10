@@ -82,3 +82,17 @@ export interface TimelineSessionOption {
   sessionId: string;
   project: string | null;
 }
+
+/**
+ * Sentinelles du filtre de session, purement client : le serveur ne connaît que
+ * « toutes les sessions » (paramètre `sessionId` absent) ou « celle-ci ». Le tri
+ * actives/toutes se fait donc côté client sur `isActive`, sans toucher au
+ * contrat figé de la spec 003.
+ *
+ * Aucune collision possible avec un vrai `sessionId` : ce sont des UUID.
+ */
+export const TIMELINE_ACTIVE_SESSIONS = '__active__';
+export const TIMELINE_ALL_SESSIONS = '__all__';
+
+/** L'une des deux sentinelles ci-dessus, ou un `sessionId` réel. */
+export type TimelineSessionFilter = string;

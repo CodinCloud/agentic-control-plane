@@ -7,9 +7,10 @@ export interface RangeSelectorProps {
 }
 
 /**
- * The plan's readability lever: session entière · dernière heure · dernier
- * tour. No continuous zoom, no log scale — see plan decisions #3 and §"Hors
- * périmètre".
+ * Le levier de lisibilité du plan : session entière · dernière heure. Pas de
+ * zoom continu, pas d'échelle logarithmique — décision #3 et §"Hors périmètre".
+ *
+ * « Dernier tour » a été retiré : il ne servait pas.
  */
 export function RangeSelector({ value, onChange }: RangeSelectorProps) {
   return (

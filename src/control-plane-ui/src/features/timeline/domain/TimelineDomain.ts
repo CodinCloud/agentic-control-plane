@@ -1,4 +1,11 @@
-import type { AgentLane, TimelineSession, TimelineWindow } from '../timelineTypes';
+import {
+  TIMELINE_ACTIVE_SESSIONS,
+  TIMELINE_ALL_SESSIONS,
+  type AgentLane,
+  type TimelineSession,
+  type TimelineSessionFilter,
+  type TimelineWindow,
+} from '../timelineTypes';
 
 /**
  * Pure, static business rules for the timeline (Gantt) feature. No IO, no
@@ -29,6 +36,26 @@ export class TimelineDomain {
    */
   static isOngoing(lane: Pick<AgentLane, 'endedAt'>): boolean {
     return lane.endedAt === null;
+  }
+
+  /**
+   * Applique le filtre de session à ce que le serveur a renvoyé. « Actives »
+   * s'appuie sur `isActive` (dernière activité < 5 min, décision #2 de la spec
+   * 003) — c'est le défaut : ce qui tourne maintenant est ce qu'on regarde,
+   * l'historique se demande explicitement.
+   *
+   * Le dernier cas est défensif : quand un `sessionId` précis est choisi, le
+   * serveur a déjà restreint sa réponse.
+   */
+  static applySessionFilter(sessions: TimelineSession[], filter: TimelineSessionFilter): TimelineSession[] {
+    if (filter === TIMELINE_ALL_SESSIONS) return sessions;
+    if (filter === TIMELINE_ACTIVE_SESSIONS) return sessions.filter((session) => session.isActive);
+    return sessions.filter((session) => session.sessionId === filter);
+  }
+
+  /** Le `sessionId` à passer au serveur — `null` pour les deux sentinelles, qui se résolvent côté client. */
+  static toServerSessionId(filter: TimelineSessionFilter): string | null {
+    return filter === TIMELINE_ACTIVE_SESSIONS || filter === TIMELINE_ALL_SESSIONS ? null : filter;
   }
 
   static maxBillableTokens(lanes: Pick<AgentLane, 'billableTokens'>[]): number {

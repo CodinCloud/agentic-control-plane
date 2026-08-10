@@ -2,10 +2,13 @@ export type {
   TimelineWindow,
   TimelineSession,
   TimelineSessionOption,
+  TimelineSessionFilter,
   AgentLane,
   TimelineResponse,
   AgentRunDetail,
 } from './timelineTypes';
+
+export { TIMELINE_ACTIVE_SESSIONS, TIMELINE_ALL_SESSIONS } from './timelineTypes';
 
 export type { ITimelineRepository } from './api/TimelineRepository';
 export { timelineRepository } from './api/TimelineRepository';
