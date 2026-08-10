@@ -33,8 +33,4 @@ export { EventRow } from './components/EventRow';
 export { EventFiltersBar } from './components/EventFiltersBar';
 export { StreamStatusIndicator } from './components/StreamStatusIndicator';
 export { KpiDashboard } from './components/KpiDashboard';
-export { StatsOverview } from './components/StatsOverview';
 export { AgentCostBreakdown } from './components/AgentCostBreakdown';
-export { ToolReliabilityTable } from './components/ToolReliabilityTable';
-export { ContextPressureCard } from './components/ContextPressureCard';
-export { PermissionsFrictionCard } from './components/PermissionsFrictionCard';

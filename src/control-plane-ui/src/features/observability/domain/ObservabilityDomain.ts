@@ -17,16 +17,31 @@ const TOOL_EMOJI: Record<string, string> = {
   BashOutput: '📤',
 };
 
+/**
+ * Un emoji par événement capté (voir hooks/claude-hooks.json). `Unmarshalable`
+ * n'est pas un hook Claude Code : c'est le nom que l'ingestion se donne à
+ * elle-même quand un corps n'est même pas du JSON valide — il apparaît donc
+ * bien dans le flux et mérite son icône.
+ */
 const EVENT_EMOJI: Record<string, string> = {
-  PreToolUse: '➡️',
-  PostToolUse: '⬅️',
-  Notification: '🔔',
-  Stop: '🏁',
-  SubagentStop: '🤖',
-  PreCompact: '🗜️',
-  UserPromptSubmit: '💬',
   SessionStart: '🟢',
   SessionEnd: '🔴',
+  UserPromptSubmit: '💬',
+  UserPromptExpansion: '⌨️',
+  PreToolUse: '➡️',
+  PostToolUse: '⬅️',
+  PostToolUseFailure: '⚠️',
+  PostToolBatch: '📦',
+  PermissionRequest: '🔐',
+  PermissionDenied: '⛔',
+  SubagentStart: '🚀',
+  SubagentStop: '🤖',
+  Stop: '🏁',
+  StopFailure: '💥',
+  PreCompact: '🗜️',
+  PostCompact: '📉',
+  Notification: '🔔',
+  Unmarshalable: '❓',
 };
 
 const DEFAULT_TOOL_EMOJI = '🔧';
@@ -128,5 +143,21 @@ export class ObservabilityDomain {
 
   static formatPercent(ratio: number): string {
     return `${Math.round(ratio * 100)}%`;
+  }
+
+  /**
+   * Montant en USD, précision décroissante — `$1.23` sous 10 $, `$12.3` sous
+   * 100 $, `$123` au-delà : même logique que `formatTokens`, la deuxième
+   * décimale ne veut plus rien dire à 300 $.
+   *
+   * Un coût absent s'affiche `—`, jamais `$0.00` : un modèle hors grille n'a
+   * pas un coût nul, il a un coût inconnu.
+   */
+  static formatCostUsd(value: number | null | undefined): string {
+    if (value === null || value === undefined) return '—';
+    const abs = Math.abs(value);
+    if (abs < 10) return `$${value.toFixed(2)}`;
+    if (abs < 100) return `$${value.toFixed(1)}`;
+    return `$${Math.round(value)}`;
   }
 }

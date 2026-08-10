@@ -1,8 +1,10 @@
 using ControlPlane.Application.Abstractions.Clock;
 using ControlPlane.Application.Abstractions.Data;
+using ControlPlane.Application.Abstractions.Pricing;
 using ControlPlane.Application.Abstractions.Transcripts;
 using ControlPlane.Infrastructure.Clock;
 using ControlPlane.Infrastructure.Persistence;
+using ControlPlane.Infrastructure.Pricing;
 using ControlPlane.Infrastructure.Transcripts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -24,6 +26,11 @@ public static class DependencyInjection
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ControlPlaneDbContext>());
 
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
+
+        // Grille tarifaire : socle embarqué dans le domaine, que la section ModelPricing
+        // d'appsettings.json vient recouvrir entrée par entrée. Résolue une fois au démarrage.
+        services.Configure<ModelPricingOptions>(configuration.GetSection(ModelPricingOptions.SectionName));
+        services.AddSingleton<IModelPricingProvider, ModelPricingProvider>();
 
         // Same decoupling mechanism as the WebSocket event broadcaster (Api/Realtime): an
         // in-memory queue drained by a BackgroundService, so a transcript read can never

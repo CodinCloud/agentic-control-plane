@@ -1,8 +1,10 @@
 using ControlPlane.Application.Abstractions.Clock;
 using ControlPlane.Application.Abstractions.Data;
 using ControlPlane.Application.Abstractions.Messaging;
+using ControlPlane.Application.Abstractions.Pricing;
 using ControlPlane.Domain.Abstractions;
 using ControlPlane.Domain.ModelUsages;
+using ControlPlane.Domain.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace ControlPlane.Application.Stats.GetStats;
@@ -21,15 +23,34 @@ public sealed record StatsResponse(
 
 public sealed record StatsWindow(DateTime Since, DateTime Until);
 
+/// <summary>
+/// <c>CostUsd</c> est le <b>coût équivalent API</b> : la valorisation du travail aux tarifs
+/// publics, pas une facture — le poste tourne sous abonnement forfaitaire. Null quand aucune
+/// ligne de la fenêtre n'est tarifable ; <c>UnpricedModels</c> nomme alors les modèles absents
+/// de la grille, pour que l'écran signale un total partiel au lieu de le présenter comme
+/// complet.
+/// </summary>
 public sealed record StatsTotals(
     int Events,
     int Sessions,
     long BillableTokens,
     long CacheReadTokens,
-    double CacheHitRatio);
+    double CacheHitRatio,
+    decimal? CostUsd,
+    IReadOnlyList<string> UnpricedModels);
 
-/// <summary>KPI 1 — the real cost of delegation. <c>AgentType</c> null = main session, kept as-is (the front labels it).</summary>
-public sealed record AgentTokenStats(string? AgentType, int Events, long BillableTokens, double Share);
+/// <summary>KPI 1 — the real cost of delegation. <c>AgentType</c> null = main session, kept as-is (the front labels it).
+/// <c>Share</c> est la part en tokens (conservée), <c>CostShare</c> la part en dollars — c'est
+/// cette dernière que la barre affiche : comparer des tokens entre agents est faux dès que les
+/// modèles diffèrent, ce qui est le cas nominal (Opus en session principale, Sonnet en
+/// sous-agent).</summary>
+public sealed record AgentTokenStats(
+    string? AgentType,
+    int Events,
+    long BillableTokens,
+    double Share,
+    decimal? CostUsd,
+    double CostShare);
 
 /// <summary>KPI 2 — success must be earned.</summary>
 public sealed record ToolReliabilityStats(
@@ -51,7 +72,7 @@ public sealed record ContextPressureStats(int AutoCompactions, int ManualCompact
 /// </summary>
 public sealed record PermissionsStats(int Requested, int Denied);
 
-/// <summary>KPI 5 — context occupancy and model, per live session.</summary>
+/// <summary>KPI 5 — context occupancy, model and cost, per live session.</summary>
 public sealed record SessionStats(
     string SessionId,
     string? Project,
@@ -59,7 +80,8 @@ public sealed record SessionStats(
     DateTime LastSeenAt,
     long ContextTokens,
     int Events,
-    long BillableTokens);
+    long BillableTokens,
+    decimal? CostUsd);
 
 /// <summary>
 /// Tout ce qui compte des tokens ou nomme un modèle vient de <see cref="ModelUsage"/> (les
@@ -67,8 +89,15 @@ public sealed record SessionStats(
 /// compactions, sessions — vient de HookEvent. Les deux sources ne doivent jamais être
 /// additionnées : un même travail y apparaît sous deux formes, et les mélanger produit un
 /// double comptage.
+///
+/// <para>Le coût est calculé <b>à la lecture</b>, jamais figé en base : corriger un tarif
+/// corrige tout l'historique d'un coup, au prix assumé de réécrire le passé. Voir
+/// plans/004-cout-equivalent-api.md, décision #4.</para>
 /// </summary>
-internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateTimeProvider dateTimeProvider)
+internal sealed class GetStatsQueryHandler(
+    IApplicationDbContext context,
+    IDateTimeProvider dateTimeProvider,
+    IModelPricingProvider pricingProvider)
     : IQueryHandler<GetStatsQuery, StatsResponse>
 {
     private static readonly TimeSpan DefaultWindow = TimeSpan.FromHours(24);
@@ -115,15 +144,19 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
                 u.InputTokens,
                 u.OutputTokens,
                 u.CacheCreationTokens,
+                u.CacheCreation5mTokens,
+                u.CacheCreation1hTokens,
                 u.CacheReadTokens))
             .ToListAsync(cancellationToken);
 
-        StatsTotals totals = BuildTotals(rows, usageRows);
-        List<AgentTokenStats> tokensByAgent = BuildTokensByAgent(usageRows, totals.BillableTokens);
+        PricingTable pricing = pricingProvider.Current;
+
+        StatsTotals totals = BuildTotals(rows, usageRows, pricing);
+        List<AgentTokenStats> tokensByAgent = BuildTokensByAgent(usageRows, totals.BillableTokens, totals.CostUsd, pricing);
         List<ToolReliabilityStats> toolReliability = BuildToolReliability(rows);
         ContextPressureStats contextPressure = BuildContextPressure(rows);
         PermissionsStats permissions = BuildPermissions(rows);
-        List<SessionStats> sessions = BuildSessions(rows, usageRows);
+        List<SessionStats> sessions = BuildSessions(rows, usageRows, pricing);
 
         var response = new StatsResponse(
             new StatsWindow(since, until),
@@ -145,7 +178,7 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
     /// <c>Sessions</c> stay HookEvent-sourced — they're lifecycle-event counts, which is
     /// exactly what HookEvent is for.
     /// </summary>
-    private static StatsTotals BuildTotals(List<EventRow> rows, List<UsageRow> usageRows)
+    private static StatsTotals BuildTotals(List<EventRow> rows, List<UsageRow> usageRows, PricingTable pricing)
     {
         long input = usageRows.Sum(u => (long)u.InputTokens);
         long output = usageRows.Sum(u => (long)u.OutputTokens);
@@ -161,7 +194,14 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
 
         int sessions = rows.Select(r => r.SessionId).Where(s => s != null).Distinct().Count();
 
-        return new StatsTotals(rows.Count, sessions, billable, cacheRead, cacheHitRatio);
+        return new StatsTotals(
+            rows.Count,
+            sessions,
+            billable,
+            cacheRead,
+            cacheHitRatio,
+            SumCost(usageRows, pricing),
+            UnpricedModels(usageRows, pricing));
     }
 
     /// <summary>
@@ -171,8 +211,16 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
     /// i.e. <see cref="StatsTotals.BillableTokens"/> as computed by <see cref="BuildTotals"/> —
     /// both are ModelUsage-sourced now, so they're the same figure and shouldn't be
     /// recomputed twice.
+    ///
+    /// <para><c>CostShare</c> a le même dénominateur côté dollars. Les deux parts sont
+    /// calculées sur les seules lignes tarifables de part et d'autre, sans quoi elles ne
+    /// sommeraient pas à 1.</para>
     /// </summary>
-    private static List<AgentTokenStats> BuildTokensByAgent(List<UsageRow> usageRows, long totalBillable)
+    private static List<AgentTokenStats> BuildTokensByAgent(
+        List<UsageRow> usageRows,
+        long totalBillable,
+        decimal? totalCost,
+        PricingTable pricing)
     {
         return usageRows
             .GroupBy(u => u.AgentType) // null key preserved: main session, never re-labeled here.
@@ -181,9 +229,15 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
                 long billable = g.Sum(u => (long)u.InputTokens + u.OutputTokens + u.CacheCreationTokens);
                 double share = totalBillable == 0 ? 0 : (double)billable / totalBillable;
 
-                return new AgentTokenStats(g.Key, g.Count(), billable, share);
+                decimal? cost = SumCost(g, pricing);
+                double costShare = totalCost is null or 0 || cost is null
+                    ? 0
+                    : (double)(cost.Value / totalCost.Value);
+
+                return new AgentTokenStats(g.Key, g.Count(), billable, share, cost, costShare);
             })
-            .OrderByDescending(a => a.BillableTokens)
+            .OrderByDescending(a => a.CostUsd ?? 0)
+            .ThenByDescending(a => a.BillableTokens)
             .ToList();
     }
 
@@ -247,7 +301,7 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
         return new PermissionsStats(requested, denied);
     }
 
-    private static List<SessionStats> BuildSessions(List<EventRow> rows, List<UsageRow> usageRows)
+    private static List<SessionStats> BuildSessions(List<EventRow> rows, List<UsageRow> usageRows, PricingTable pricing)
     {
         List<SessionAggregate> aggregates = rows
             .Where(r => r.SessionId != null)
@@ -261,18 +315,72 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
 
         Dictionary<string, (long ContextTokens, string? Model)> contextAndModelBySession = BuildContextAndModelBySession(usageRows);
         Dictionary<string, long> billableTokensBySession = BuildBillableTokensBySession(usageRows);
+        Dictionary<string, decimal?> costBySession = usageRows
+            .GroupBy(u => u.SessionId)
+            .ToDictionary(g => g.Key, g => SumCost(g, pricing));
 
         return aggregates
             .Select(a =>
             {
                 (long contextTokens, string? model) = contextAndModelBySession.GetValueOrDefault(a.SessionId, (0, null));
                 long billableTokens = billableTokensBySession.GetValueOrDefault(a.SessionId, 0);
+                decimal? cost = costBySession.GetValueOrDefault(a.SessionId);
 
-                return new SessionStats(a.SessionId, a.Project, model, a.LastSeenAt, contextTokens, a.Events, billableTokens);
+                return new SessionStats(a.SessionId, a.Project, model, a.LastSeenAt, contextTokens, a.Events, billableTokens, cost);
             })
             .OrderByDescending(s => s.LastSeenAt)
             .ToList();
     }
+
+    /// <summary>
+    /// Somme des coûts tarifables, ou <c>null</c> si <b>aucune</b> ligne ne l'est. Les lignes
+    /// dont le modèle est hors grille sont ignorées plutôt que comptées zéro : les compter à
+    /// zéro minorerait le total sans le signaler. C'est <see cref="UnpricedModels"/> qui rend
+    /// cette incomplétude visible.
+    /// </summary>
+    private static decimal? SumCost(IEnumerable<UsageRow> usageRows, PricingTable pricing)
+    {
+        decimal total = 0;
+        bool anyPriced = false;
+
+        foreach (UsageRow usage in usageRows)
+        {
+            decimal? cost = CostCalculator.Compute(pricing, usage.Model, ToTokenUsage(usage));
+
+            if (cost.HasValue)
+            {
+                total += cost.Value;
+                anyPriced = true;
+            }
+        }
+
+        return anyPriced ? total : null;
+    }
+
+    /// <summary>
+    /// Les modèles rencontrés dans la fenêtre mais absents de la grille. Un usage sans modèle
+    /// du tout (colonne nulle) n'y figure pas — il n'a pas de nom à afficher — mais il n'arrive
+    /// pas en pratique : tout message assistant d'un transcript porte son <c>model</c>.
+    /// </summary>
+    private static List<string> UnpricedModels(List<UsageRow> usageRows, PricingTable pricing)
+    {
+        return usageRows
+            .Select(u => u.Model)
+            .Where(model => model != null)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(model => !pricing.TryResolve(model, out _))
+            .Select(model => model!)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static TokenUsage ToTokenUsage(UsageRow usage) => new(
+        usage.InputTokens,
+        usage.OutputTokens,
+        usage.CacheCreation5mTokens,
+        usage.CacheCreation1hTokens,
+        usage.CacheCreationTokens,
+        usage.CacheReadTokens);
 
     /// <summary>
     /// Billable tokens per session, from <see cref="ModelUsage"/> — same reasoning as
@@ -354,5 +462,7 @@ internal sealed class GetStatsQueryHandler(IApplicationDbContext context, IDateT
         int InputTokens,
         int OutputTokens,
         int CacheCreationTokens,
+        int CacheCreation5mTokens,
+        int CacheCreation1hTokens,
         int CacheReadTokens);
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ControlPlane.Domain.AgentRuns;
 using Microsoft.Extensions.Logging;
 
 namespace ControlPlane.Infrastructure.Transcripts;
@@ -51,8 +52,12 @@ internal static class SubagentTranscriptDiscovery
 
         foreach (string jsonlFile in jsonlFiles)
         {
-            string agentId = Path.GetFileNameWithoutExtension(jsonlFile);
-            string metaPath = Path.Combine(subagentsDir, agentId + ".meta.json");
+            // Le nom de fichier sert à trouver le meta ; l'identifiant persisté, lui, est
+            // normalisé sur la forme des hooks (sans le préfixe `agent-`), sans quoi les
+            // événements et les lanes ne se joignent sur rien. Voir AgentIdentity.
+            string fileName = Path.GetFileNameWithoutExtension(jsonlFile);
+            string metaPath = Path.Combine(subagentsDir, fileName + ".meta.json");
+            string agentId = AgentIdentity.Normalize(fileName) ?? fileName;
 
             (string? agentType, string? description, int? spawnDepth) = TryReadMeta(metaPath, logger);
 

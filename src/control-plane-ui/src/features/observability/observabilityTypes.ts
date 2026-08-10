@@ -83,13 +83,25 @@ export interface StatsTotals {
   billableTokens: number;
   cacheReadTokens: number;
   cacheHitRatio: number;
+  /**
+   * Coût **équivalent API** de la fenêtre, en USD : la valorisation du travail
+   * aux tarifs publics, pas une facture — le poste tourne sous abonnement
+   * forfaitaire. Null quand aucune ligne n'est tarifable.
+   */
+  costUsd: number | null;
+  /** Modèles rencontrés mais absents de la grille : le total est alors partiel. */
+  unpricedModels: string[];
 }
 
 export interface AgentTokenStat {
   agentType: string | null;
   events: number;
   billableTokens: number;
+  /** Part en tokens — conservée, mais trompeuse dès que les modèles diffèrent. */
   share: number;
+  costUsd: number | null;
+  /** Part en dollars — c'est elle que la barre affiche. */
+  costShare: number;
 }
 
 export interface ToolReliabilityStat {

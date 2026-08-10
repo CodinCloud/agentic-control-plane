@@ -116,6 +116,13 @@ public static class TranscriptProjection
             TryGetString(message, "model", out string? model);
             TryGetString(message, "stop_reason", out string? stopReason);
 
+            // La ventilation du cache par TTL vit dans un sous-objet `cache_creation`, à côté
+            // du total plat `cache_creation_input_tokens`. Les deux TTL n'ont pas le même
+            // tarif (1,25× l'entrée en 5 min, 2× en 1 h), donc le total seul ne suffit pas à
+            // chiffrer un coût. Absent des transcripts plus anciens : on retombe alors sur
+            // zéro et le repli tarifaire s'en charge.
+            (int cacheCreation5m, int cacheCreation1h) = GetCacheCreationSplit(usage);
+
             return ModelUsage.Create(
                 messageId: messageId!,
                 sessionId: sessionId,
@@ -127,10 +134,26 @@ public static class TranscriptProjection
                 inputTokens: GetInt(usage, "input_tokens"),
                 outputTokens: GetInt(usage, "output_tokens"),
                 cacheCreationTokens: GetInt(usage, "cache_creation_input_tokens"),
+                cacheCreation5mTokens: cacheCreation5m,
+                cacheCreation1hTokens: cacheCreation1h,
                 cacheReadTokens: GetInt(usage, "cache_read_input_tokens"),
                 stopReason: stopReason,
                 spawnDepth: spawnDepth);
         }
+    }
+
+    /// <summary>Lit <c>usage.cache_creation.{ephemeral_5m,ephemeral_1h}_input_tokens</c>.
+    /// Sous-objet absent ou mal formé : (0, 0), jamais une exception — une ligne n'est jamais
+    /// rejetée pour un champ manquant.</summary>
+    private static (int FiveMinutes, int OneHour) GetCacheCreationSplit(JsonElement usage)
+    {
+        if (!usage.TryGetProperty("cache_creation", out JsonElement split) ||
+            split.ValueKind != JsonValueKind.Object)
+        {
+            return (0, 0);
+        }
+
+        return (GetInt(split, "ephemeral_5m_input_tokens"), GetInt(split, "ephemeral_1h_input_tokens"));
     }
 
     private static bool TryGetString(JsonElement element, string propertyName, out string? value)

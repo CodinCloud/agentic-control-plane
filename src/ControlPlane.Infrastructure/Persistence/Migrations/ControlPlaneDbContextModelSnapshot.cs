@@ -232,6 +232,18 @@ namespace ControlPlane.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT")
                         .HasColumnName("agent_type");
 
+                    b.Property<int>("CacheCreation1hTokens")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0)
+                        .HasColumnName("cache_creation1h_tokens");
+
+                    b.Property<int>("CacheCreation5mTokens")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0)
+                        .HasColumnName("cache_creation5m_tokens");
+
                     b.Property<int>("CacheCreationTokens")
                         .HasColumnType("INTEGER")
                         .HasColumnName("cache_creation_tokens");

@@ -2,35 +2,34 @@ import { useState } from 'react';
 import { EmptyState } from '@/components/vloc/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { useStats, type StatsWindowHours } from '../hooks/useStats';
-import { StatsOverview } from './StatsOverview';
+import { Select } from '@/components/ui/select';
+import { useStats, STATS_WINDOWS, type StatsWindowHours } from '../hooks/useStats';
 import { AgentCostBreakdown } from './AgentCostBreakdown';
-import { ToolReliabilityTable } from './ToolReliabilityTable';
-import { ContextPressureCard } from './ContextPressureCard';
-import { PermissionsFrictionCard } from './PermissionsFrictionCard';
 
 const DEFAULT_WINDOW_HOURS: StatsWindowHours = '24';
 
-/** The 4 baseline KPI tiles + session principale vs sous-agents breakdown — Slice 6. */
+/**
+ * Le seul KPI de l'écran : le coût par agent. Les compteurs d'ensemble, la
+ * fiabilité des outils, la pression sur le contexte et le frottement des
+ * permissions ont été retirés — ils restent calculés par `GET /api/stats`,
+ * seul leur affichage disparaît. Voir CONTEXT.md §"Doctrine des KPI".
+ *
+ * Le sélecteur de fenêtre vivait dans le bandeau d'ensemble supprimé ; il est
+ * remonté ici, sans quoi la fenêtre ne serait plus réglable.
+ */
 export function KpiDashboard() {
   const [windowHours, setWindowHours] = useState<StatsWindowHours>(DEFAULT_WINDOW_HOURS);
   const { stats, isLoading, isError, error, refetch } = useStats(windowHours);
 
   if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-40 w-full" />
-        ))}
-      </div>
-    );
+    return <Skeleton className="h-64 w-full" />;
   }
 
   if (isError || !stats) {
     return (
       <EmptyState
         variant="error"
-        title="Impossible de charger les statistiques"
+        title="Impossible de charger le coût par agent"
         description={error instanceof Error ? error.message : 'Le serveur est-il lancé sur le port 4317 ?'}
         action={
           <Button variant="outline" size="sm" onClick={() => void refetch()}>
@@ -42,14 +41,22 @@ export function KpiDashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <StatsOverview totals={stats.totals} windowHours={windowHours} onWindowChange={setWindowHours} />
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        <AgentCostBreakdown tokensByAgent={stats.tokensByAgent} />
-        <ToolReliabilityTable toolReliability={stats.toolReliability} />
-        <ContextPressureCard contextPressure={stats.contextPressure} />
-        <PermissionsFrictionCard permissions={stats.permissions} />
-      </div>
-    </div>
+    <AgentCostBreakdown
+      tokensByAgent={stats.tokensByAgent}
+      totals={stats.totals}
+      action={
+        <Select
+          value={windowHours}
+          onChange={(event) => setWindowHours(event.target.value as StatsWindowHours)}
+          aria-label="Fenêtre temporelle du coût par agent"
+        >
+          {STATS_WINDOWS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+      }
+    />
   );
 }

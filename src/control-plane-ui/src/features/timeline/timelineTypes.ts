@@ -30,6 +30,8 @@ export interface AgentLane {
   messages: number;
   billableTokens: number;
   cacheReadTokens: number;
+  /** Coût équivalent API de ce seul run — permet de ventiler le coût par agent sans requête de plus. */
+  costUsd: number | null;
   model: string;
   spawnDepth: number;
 }
@@ -48,7 +50,15 @@ export interface TimelineSession {
   /** null = session in progress. */
   endedAt: string | null;
   messages: number;
+  /** Tokens de la session elle-même, hors sous-agents. */
   billableTokens: number;
+  /**
+   * Coût équivalent API de la session, sous-agents **compris** — portée
+   * volontairement plus large que `billableTokens` : le bandeau surplombe les
+   * lanes de ses propres agents, un coût qui les exclurait laisserait croire
+   * qu'une session ayant tout délégué n'a rien coûté. Null si rien n'est tarifable.
+   */
+  costUsd: number | null;
   /** True when the session's last activity is under 5 minutes old (plan decision #2). */
   isActive: boolean;
   /** Sorted by `startedAt` ascending, per contract. */
@@ -73,4 +83,52 @@ export interface AgentRunDetail extends AgentLane {
 export interface TimelineSessionOption {
   sessionId: string;
   project: string | null;
+}
+
+/**
+ * Sentinelles du filtre de session, purement client : le serveur ne connaît que
+ * « toutes les sessions » (paramètre `sessionId` absent) ou « celle-ci ». Le tri
+ * actives/toutes se fait donc côté client sur `isActive`, sans toucher au
+ * contrat figé de la spec 003.
+ *
+ * Aucune collision possible avec un vrai `sessionId` : ce sont des UUID.
+ */
+export const TIMELINE_ACTIVE_SESSIONS = '__active__';
+export const TIMELINE_ALL_SESSIONS = '__all__';
+
+/** L'une des deux sentinelles ci-dessus, ou un `sessionId` réel. */
+export type TimelineSessionFilter = string;
+
+/**
+ * La session principale n'est pas un agent : ses appels d'outil portent
+ * `agent_id IS NULL`. Cette sentinelle la désigne dans une chaîne de requête et
+ * dans le search param `?agent=` — même convention que côté serveur.
+ */
+export const MAIN_SESSION_AGENT = 'main';
+
+/**
+ * Un appel d'outil, entrée et sortie réduites à l'essentiel côté serveur.
+ *
+ * Jamais le payload brut : la sortie d'un `Edit` ou d'un `Write` contient le
+ * fichier entier. Voir plans/005-gantt-exploitable.md, décision #8.
+ */
+export interface ToolCall {
+  id: number;
+  at: string;
+  toolName: string;
+  /** Nombre d'appels consécutifs du même outil réunis sous ce glyphe. 1 = isolé. */
+  repeatCount: number;
+  durationMs: number | null;
+  failed: boolean;
+  /** Extrait de l'entrée : la commande, le chemin, le motif. */
+  summary: string | null;
+  /** Extrait de la sortie, ou le message d'erreur en cas d'échec. */
+  result: string | null;
+  /** False = aucune règle ne connaît cet outil ; l'UI doit le dire plutôt qu'afficher un blanc. */
+  extractable: boolean;
+}
+
+/** Ordonné par temps croissant — c'est une chronologie, pas un flux. */
+export interface ToolCallsResponse {
+  calls: ToolCall[];
 }
