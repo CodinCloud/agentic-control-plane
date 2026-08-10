@@ -5,4 +5,7 @@
     <Project Path="src/ControlPlane.Domain/ControlPlane.Domain.csproj" />
     <Project Path="src/ControlPlane.Infrastructure/ControlPlane.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ControlPlane.Domain.Tests/ControlPlane.Domain.Tests.csproj" />
+  </Folder>
 </Solution>

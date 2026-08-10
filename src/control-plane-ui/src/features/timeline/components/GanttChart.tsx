@@ -101,7 +101,7 @@ export function GanttChart() {
             Aucune session dans cette fenêtre — base vide.
           </div>
         ) : (
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[72vh] overflow-y-auto">
             {hasAnyLane ? <TimelineAxis window={effectiveWindow ?? timeline.window} /> : null}
             <div className="flex flex-col gap-4">
               {timeline.sessions.map((session) => (

@@ -129,4 +129,20 @@ export class ObservabilityDomain {
   static formatPercent(ratio: number): string {
     return `${Math.round(ratio * 100)}%`;
   }
+
+  /**
+   * Montant en USD, précision décroissante — `$1.23` sous 10 $, `$12.3` sous
+   * 100 $, `$123` au-delà : même logique que `formatTokens`, la deuxième
+   * décimale ne veut plus rien dire à 300 $.
+   *
+   * Un coût absent s'affiche `—`, jamais `$0.00` : un modèle hors grille n'a
+   * pas un coût nul, il a un coût inconnu.
+   */
+  static formatCostUsd(value: number | null | undefined): string {
+    if (value === null || value === undefined) return '—';
+    const abs = Math.abs(value);
+    if (abs < 10) return `$${value.toFixed(2)}`;
+    if (abs < 100) return `$${value.toFixed(1)}`;
+    return `$${Math.round(value)}`;
+  }
 }

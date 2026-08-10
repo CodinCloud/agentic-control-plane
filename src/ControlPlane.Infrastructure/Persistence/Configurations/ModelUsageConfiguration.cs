@@ -34,6 +34,12 @@ internal sealed class ModelUsageConfiguration : IEntityTypeConfiguration<ModelUs
         builder.Property(usage => usage.CacheCreationTokens).IsRequired();
         builder.Property(usage => usage.CacheReadTokens).IsRequired();
 
+        // Ventilation du cache par TTL, tarifée différemment (1,25× l'entrée en 5 min, 2× en
+        // 1 h). Les lignes déjà en base valent 0 : l'idempotence par MessageId empêche de les
+        // reprendre, elles retombent sur le repli documenté dans CostCalculator.
+        builder.Property(usage => usage.CacheCreation5mTokens).IsRequired().HasDefaultValue(0);
+        builder.Property(usage => usage.CacheCreation1hTokens).IsRequired().HasDefaultValue(0);
+
         // The idempotency key: the same transcript is reread in full on every Stop, so
         // re-ingestion of an already-seen message id must be a guaranteed no-op.
         builder.HasIndex(usage => usage.MessageId).IsUnique();

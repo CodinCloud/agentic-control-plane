@@ -1,5 +1,6 @@
 import { cn } from '@/core';
 import { StatusBadge } from '@/components/vloc/StatusBadge';
+import { ObservabilityDomain } from '@/features/observability';
 import { TimelineDomain } from '../domain/TimelineDomain';
 import type { TimelineSession } from '../timelineTypes';
 
@@ -35,7 +36,12 @@ export function SessionBanner({ session }: SessionBannerProps) {
           )}
         </div>
         <span className="shrink-0 text-xs tabular-nums text-neutral-500">
-          {session.messages} messages · {TimelineDomain.formatTokens(session.billableTokens)} tk
+          {session.messages} messages · {TimelineDomain.formatTokens(session.billableTokens)} tk ·{' '}
+          {/* Sous-agents compris, contrairement aux tokens juste à gauche — voir
+              timelineTypes.TimelineSession.costUsd. */}
+          <span className="text-neutral-300" title="Coût équivalent API, sous-agents compris">
+            {ObservabilityDomain.formatCostUsd(session.costUsd)}
+          </span>
         </span>
       </div>
 

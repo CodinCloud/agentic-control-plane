@@ -39,7 +39,17 @@ public sealed class ModelUsage
 
     public int OutputTokens { get; private set; }
 
+    /// <summary>Le total plat <c>cache_creation_input_tokens</c>. Reste la source du repli
+    /// tarifaire pour les lignes ingérées avant que la ventilation par TTL ne soit lue.</summary>
     public int CacheCreationTokens { get; private set; }
+
+    /// <summary>Part du cache écrite en TTL 5 minutes (tarifée 1,25× l'entrée). Zéro sur les
+    /// lignes antérieures à la ventilation — voir <c>CostCalculator.SplitCacheWrite</c>.</summary>
+    public int CacheCreation5mTokens { get; private set; }
+
+    /// <summary>Part du cache écrite en TTL 1 heure (tarifée 2× l'entrée). C'est le cas
+    /// dominant en pratique : 93 % des écritures mesurées sur le poste.</summary>
+    public int CacheCreation1hTokens { get; private set; }
 
     public int CacheReadTokens { get; private set; }
 
@@ -66,6 +76,8 @@ public sealed class ModelUsage
         int inputTokens,
         int outputTokens,
         int cacheCreationTokens,
+        int cacheCreation5mTokens,
+        int cacheCreation1hTokens,
         int cacheReadTokens,
         string? stopReason,
         int? spawnDepth)
@@ -82,6 +94,8 @@ public sealed class ModelUsage
             InputTokens = inputTokens,
             OutputTokens = outputTokens,
             CacheCreationTokens = cacheCreationTokens,
+            CacheCreation5mTokens = cacheCreation5mTokens,
+            CacheCreation1hTokens = cacheCreation1hTokens,
             CacheReadTokens = cacheReadTokens,
             StopReason = stopReason,
             SpawnDepth = spawnDepth,

@@ -1,7 +1,9 @@
 using ControlPlane.Application.Abstractions.Clock;
 using ControlPlane.Application.Abstractions.Data;
 using ControlPlane.Application.Abstractions.Messaging;
+using ControlPlane.Application.Abstractions.Pricing;
 using ControlPlane.Domain.Abstractions;
+using ControlPlane.Domain.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace ControlPlane.Application.Timeline.GetTimeline;
@@ -34,6 +36,13 @@ public sealed record TimelineWindow(DateTime Since, DateTime Until, DateTime? La
 /// with no agent at all still appears, with an empty <c>Lanes</c> — that absence is itself a
 /// measurement (e.g. the fresh session a compaction just opened).
 /// </summary>
+/// <param name="BillableTokens">Tokens de la session <b>elle-même</b> (hors sous-agents) —
+/// inchangé.</param>
+/// <param name="CostUsd">Coût équivalent API de la session, sous-agents <b>compris</b>. La
+/// portée diffère volontairement de <paramref name="BillableTokens"/> : le bandeau surplombe
+/// les lanes de ses propres agents, et un coût qui les exclurait donnerait à croire qu'une
+/// session ayant délégué tout son travail n'a rien coûté. Déléguer reste une dépense engagée
+/// par la session. Null si aucune ligne n'est tarifable.</param>
 public sealed record SessionSummary(
     string SessionId,
     string? Project,
@@ -42,6 +51,7 @@ public sealed record SessionSummary(
     DateTime? EndedAt,
     int Messages,
     long BillableTokens,
+    decimal? CostUsd,
     bool IsActive,
     IReadOnlyList<AgentLane> Lanes);
 
@@ -66,7 +76,10 @@ public sealed record AgentLane(
 /// depuis HookEvent ici est la clôture (<c>SubagentStop</c>/<c>Stop</c>) qui décide si une
 /// barre est encore ouverte ; aucun total n'en dérive.
 /// </summary>
-internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDateTimeProvider dateTimeProvider)
+internal sealed class GetTimelineQueryHandler(
+    IApplicationDbContext context,
+    IDateTimeProvider dateTimeProvider,
+    IModelPricingProvider pricingProvider)
     : IQueryHandler<GetTimelineQuery, TimelineResponse>
 {
     private static readonly TimeSpan DefaultWindow = TimeSpan.FromHours(24);
@@ -106,6 +119,8 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
                 u.InputTokens,
                 u.OutputTokens,
                 u.CacheCreationTokens,
+                u.CacheCreation5mTokens,
+                u.CacheCreation1hTokens,
                 u.CacheReadTokens))
             .ToListAsync(cancellationToken);
 
@@ -145,6 +160,8 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
             .Concat(usageRows.Select(u => u.SessionId))
             .ToHashSet();
 
+        PricingTable pricing = pricingProvider.Current;
+
         List<SessionSummary> sessions = sessionIds
             .Select(sessionId => BuildSessionSummary(
                 sessionId,
@@ -154,7 +171,8 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
                 runsByAgentId,
                 closedAgentIds,
                 stoppedSessionIds.Contains(sessionId),
-                until))
+                until,
+                pricing))
             .OrderByDescending(s => s.LastActivityAt)
             .Select(s => s.Summary)
             .ToList();
@@ -170,7 +188,8 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
         Dictionary<string, AgentRunLabel> runsByAgentId,
         HashSet<string> closedAgentIds,
         bool sessionClosed,
-        DateTime now)
+        DateTime now,
+        PricingTable pricing)
     {
         List<UsageRow> own = sessionUsage.Where(u => u.AgentId is null).ToList();
 
@@ -218,7 +237,10 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
             .OrderBy(lane => lane.StartedAt)
             .ToList();
 
-        var summary = new SessionSummary(sessionId, project, model, startedAt, endedAt, messages, billable, isActive, lanes);
+        // Sur toute la session, sous-agents compris — voir la doc de SessionSummary.CostUsd.
+        decimal? cost = SumCost(sessionUsage, pricing);
+
+        var summary = new SessionSummary(sessionId, project, model, startedAt, endedAt, messages, billable, cost, isActive, lanes);
 
         return (summary, lastActivityAt);
     }
@@ -260,6 +282,39 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
             .ToList();
     }
 
+    /// <summary>
+    /// Somme des coûts tarifables, ou <c>null</c> si aucune ligne ne l'est. Même règle que dans
+    /// GetStatsQueryHandler : une ligne hors grille est ignorée, jamais comptée zéro — la
+    /// compter zéro minorerait le total sans le signaler.
+    /// </summary>
+    private static decimal? SumCost(IEnumerable<UsageRow> usageRows, PricingTable pricing)
+    {
+        decimal total = 0;
+        bool anyPriced = false;
+
+        foreach (UsageRow usage in usageRows)
+        {
+            decimal? cost = CostCalculator.Compute(
+                pricing,
+                usage.Model,
+                new TokenUsage(
+                    usage.InputTokens,
+                    usage.OutputTokens,
+                    usage.CacheCreation5mTokens,
+                    usage.CacheCreation1hTokens,
+                    usage.CacheCreationTokens,
+                    usage.CacheReadTokens));
+
+            if (cost.HasValue)
+            {
+                total += cost.Value;
+                anyPriced = true;
+            }
+        }
+
+        return anyPriced ? total : null;
+    }
+
     /// <summary>Same rule for a session's own banner (closed by <c>Stop</c>) and for an agent
     /// lane (closed by <c>SubagentStop</c>): still open when the last message is recent and no
     /// closing hook fired for it.</summary>
@@ -281,6 +336,8 @@ internal sealed class GetTimelineQueryHandler(IApplicationDbContext context, IDa
         int InputTokens,
         int OutputTokens,
         int CacheCreationTokens,
+        int CacheCreation5mTokens,
+        int CacheCreation1hTokens,
         int CacheReadTokens);
 
     private sealed record AgentRunLabel(string AgentId, string? TaskDescription, int? SpawnDepth);
