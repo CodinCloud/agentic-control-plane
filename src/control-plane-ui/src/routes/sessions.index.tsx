@@ -62,7 +62,7 @@ function SessionList() {
           <TableBody>
             {sessions.map((session) => (
               <TableRow key={session.sessionId}>
-                <TableCell className="font-mono text-xs text-neutral-300">
+                <TableCell className="font-mono text-xs text-foreground">
                   {session.sessionId.slice(0, 8)}
                   {session.isActive ? (
                     <StatusBadge tone="success" className="ml-2">
@@ -70,9 +70,9 @@ function SessionList() {
                     </StatusBadge>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-neutral-300">{session.project ?? '—'}</TableCell>
-                <TableCell className="text-neutral-400">{session.model ?? '—'}</TableCell>
-                <TableCell className="text-neutral-400">{TimelineDomain.formatDateTime(session.startedAt)}</TableCell>
+                <TableCell className="text-foreground">{session.project ?? '—'}</TableCell>
+                <TableCell className="text-muted-foreground">{session.model ?? '—'}</TableCell>
+                <TableCell className="text-muted-foreground">{TimelineDomain.formatDateTime(session.startedAt)}</TableCell>
                 <TableCell className="text-right tabular-nums">{session.lanes.length}</TableCell>
                 <TableCell className="text-right tabular-nums">{session.messages}</TableCell>
                 <TableCell className="text-right tabular-nums">
@@ -80,14 +80,14 @@ function SessionList() {
                 </TableCell>
                 {/* Sous-agents compris, contrairement aux tokens de la colonne
                     précédente — voir TimelineSession.costUsd. */}
-                <TableCell className="text-right tabular-nums text-neutral-200">
+                <TableCell className="text-right tabular-nums text-foreground">
                   {ObservabilityDomain.formatCostUsd(session.costUsd)}
                 </TableCell>
                 <TableCell className="text-right">
                   <Link
                     to="/sessions/$sessionId"
                     params={{ sessionId: session.sessionId }}
-                    className="text-sm text-sky-400 hover:text-sky-300"
+                    className="text-sm text-primary hover:text-primary/80"
                   >
                     Analyser
                   </Link>

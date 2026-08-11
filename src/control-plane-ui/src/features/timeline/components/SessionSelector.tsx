@@ -24,7 +24,7 @@ export interface SessionSelectorProps {
  */
 export function SessionSelector({ value, onChange, options }: SessionSelectorProps) {
   return (
-    <label className="flex items-center gap-2 text-sm text-neutral-500">
+    <label className="flex items-center gap-2 text-sm text-muted-foreground">
       Session
       <Select
         value={value}

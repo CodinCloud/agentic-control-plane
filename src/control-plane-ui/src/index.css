@@ -1,8 +1,110 @@
 @import 'tailwindcss';
 
-/* Always-dark instrument: the Control Plane runs on a second screen. */
+/*
+ * Always-dark instrument: the Control Plane runs on a second screen.
+ * Single dark theme — no light variant, no toggle. A theme we don't use
+ * is a theme we don't test.
+ */
 :root {
   color-scheme: dark;
+
+  /* Surfaces */
+  --background: #0d0d0d;
+  --foreground: #ffffff;
+  --card: #1a1a19;
+  --card-foreground: #ffffff;
+  --popover: #1a1a19;
+  --popover-foreground: #ffffff;
+
+  /* Brand / interactive */
+  --primary: #3987e5;
+  --primary-foreground: #ffffff;
+  --secondary: #262625;
+  --secondary-foreground: #ffffff;
+  --accent: #262625;
+  --accent-foreground: #ffffff;
+
+  /* Muted text and chrome */
+  --muted: #201f1e;
+  --muted-foreground: #898781;
+
+  /* Structural */
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #3987e5;
+
+  /* Destructive */
+  --destructive: #d03b3b;
+  --destructive-foreground: #ffffff;
+
+  /* Status palette — distinct from the categorical slots below, so that a
+   * state color never impersonates a series identity. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* Categorical palette — 8 fixed slots, fixed order, never generated.
+   * Validated against the --card surface (#1a1a19): lightness band, chroma
+   * floor, CVD separation (worst adjacent pair ΔE 8.4), normal-vision floor
+   * (19.3), contrast ≥ 3:1. Do not substitute or "improve" these values. */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-status-good: var(--status-good);
+  --color-status-warning: var(--status-warning);
+  --color-status-serious: var(--status-serious);
+  --color-status-critical: var(--status-critical);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 html,
@@ -13,4 +115,7 @@ body,
 
 body {
   margin: 0;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
 }

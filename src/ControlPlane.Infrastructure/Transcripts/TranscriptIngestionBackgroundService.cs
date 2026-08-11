@@ -1,5 +1,6 @@
 using ControlPlane.Application.Abstractions.Clock;
 using ControlPlane.Application.Abstractions.Data;
+using ControlPlane.Application.Abstractions.Realtime;
 using ControlPlane.Application.Abstractions.Transcripts;
 using ControlPlane.Domain.AgentRuns;
 using ControlPlane.Domain.ModelUsages;
@@ -28,6 +29,7 @@ internal sealed class TranscriptIngestionBackgroundService(
     TranscriptIngestionQueue queue,
     IServiceScopeFactory scopeFactory,
     IDateTimeProvider dateTimeProvider,
+    IEventBroadcaster broadcaster,
     ILogger<TranscriptIngestionBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,9 +61,11 @@ internal sealed class TranscriptIngestionBackgroundService(
         {
             (List<ModelUsage> usages, List<AgentRun> runs) = ReadSubagentUsagesAndRuns(request.TranscriptPath, request.SessionId);
 
+            bool persisted = false;
+
             if (usages.Count > 0)
             {
-                await PersistNewUsagesAsync(usages, cancellationToken);
+                persisted = await PersistNewUsagesAsync(usages, cancellationToken);
             }
 
             if (runs.Count > 0)
@@ -69,14 +73,38 @@ internal sealed class TranscriptIngestionBackgroundService(
                 await PersistAgentRunsAsync(runs, cancellationToken);
             }
 
+            if (persisted)
+            {
+                PublishUsageIngested(request.SessionId);
+            }
+
             return;
         }
 
         List<ModelUsage> mainSessionUsages = ReadMainSessionUsages(request.TranscriptPath, request.SessionId);
 
-        if (mainSessionUsages.Count > 0)
+        if (mainSessionUsages.Count > 0 && await PersistNewUsagesAsync(mainSessionUsages, cancellationToken))
         {
-            await PersistNewUsagesAsync(mainSessionUsages, cancellationToken);
+            PublishUsageIngested(request.SessionId);
+        }
+    }
+
+    /// <summary>
+    /// Broadcast only after <see cref="PersistNewUsagesAsync"/>'s commit has already
+    /// succeeded — never before (plans/006-gantt-vivant.md décision #6). Isolated behind its
+    /// own try/catch, exactly like <c>RecordHookEventCommandHandler</c> isolates its own
+    /// broadcast: a missed real-time notification must never be treated as an ingestion
+    /// failure, the row is already durably persisted regardless.
+    /// </summary>
+    private void PublishUsageIngested(string sessionId)
+    {
+        try
+        {
+            broadcaster.PublishUsageIngested(sessionId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to queue usage-ingested notification for session {SessionId}.", sessionId);
         }
     }
 
@@ -137,7 +165,11 @@ internal sealed class TranscriptIngestionBackgroundService(
         return (usages, runs);
     }
 
-    private async Task PersistNewUsagesAsync(List<ModelUsage> discovered, CancellationToken cancellationToken)
+    /// <summary>Returns whether it actually committed new rows — <c>false</c> means every
+    /// discovered row already existed (idempotent no-op), which is also the signal
+    /// <see cref="ProcessAsync"/> uses to decide whether a "usage-ingested" notification is
+    /// even warranted (décision #6: no point notifying of a commit that didn't happen).</summary>
+    private async Task<bool> PersistNewUsagesAsync(List<ModelUsage> discovered, CancellationToken cancellationToken)
     {
         using IServiceScope scope = scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
@@ -157,11 +189,13 @@ internal sealed class TranscriptIngestionBackgroundService(
 
         if (newUsages.Count == 0)
         {
-            return;
+            return false;
         }
 
         context.ModelUsages.AddRange(newUsages);
         await context.SaveChangesAsync(cancellationToken);
+
+        return true;
     }
 
     /// <summary>

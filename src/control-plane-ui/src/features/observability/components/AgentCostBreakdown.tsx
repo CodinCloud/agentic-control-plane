@@ -43,53 +43,53 @@ export function AgentCostBreakdown({ tokensByAgent, totals, action }: AgentCostB
                   <span
                     className={
                       ObservabilityDomain.isMainSession(row.agentType)
-                        ? 'truncate font-medium text-neutral-100'
-                        : 'truncate text-sky-400'
+                        ? 'truncate font-medium text-foreground'
+                        : 'truncate text-primary'
                     }
                     title={ObservabilityDomain.agentLabel(row.agentType)}
                   >
                     {ObservabilityDomain.agentLabel(row.agentType)}
                   </span>
-                  <span className="shrink-0 tabular-nums text-neutral-200">
+                  <span className="shrink-0 text-foreground">
                     {ObservabilityDomain.formatCostUsd(row.costUsd)}
                   </span>
                 </div>
 
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className={
-                      ObservabilityDomain.isMainSession(row.agentType) ? 'h-full bg-neutral-200' : 'h-full bg-sky-500'
+                      ObservabilityDomain.isMainSession(row.agentType) ? 'h-full bg-foreground/70' : 'h-full bg-primary'
                     }
                     style={{ width: `${Math.min(100, Math.round(row.costShare * 100))}%` }}
                   />
                 </div>
 
-                <div className="flex items-center justify-between gap-2 text-sm text-neutral-500">
-                  <span className="tabular-nums">
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                  <span>
                     {ObservabilityDomain.formatTokens(row.billableTokens)} tk · {row.events} évts
                   </span>
-                  <span className="tabular-nums">{ObservabilityDomain.formatPercent(row.costShare)}</span>
+                  <span>{ObservabilityDomain.formatPercent(row.costShare)}</span>
                 </div>
               </li>
             ))}
           </ul>
 
-          <div className="mt-4 border-t border-neutral-800 pt-3">
+          <div className="mt-4 border-t border-border pt-3">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-neutral-500">Total</span>
-              <span className="text-2xl font-semibold tabular-nums text-neutral-100">
+              <span className="text-sm text-muted-foreground">Total</span>
+              <span className="text-2xl font-semibold text-foreground">
                 {ObservabilityDomain.formatCostUsd(totals.costUsd)}
               </span>
             </div>
             {/* Le poste tourne sous abonnement forfaitaire : ce montant n'est pas
                 une facture. Le dire à l'écran est une exigence de la spec 004. */}
-            <p className="mt-1 text-sm text-neutral-600">
+            <p className="mt-1 text-sm text-muted-foreground">
               Équivalent API — valorisation aux tarifs publics, pas une facture.
             </p>
           </div>
 
           {totals.unpricedModels.length > 0 ? (
-            <p className="mt-3 rounded-md border border-amber-900/50 bg-amber-950/30 p-2 text-sm text-amber-400">
+            <p className="mt-3 rounded-md border border-status-warning/30 bg-status-warning/10 p-2 text-sm text-status-warning">
               Total partiel : {totals.unpricedModels.join(', ')} hors grille tarifaire.
             </p>
           ) : null}

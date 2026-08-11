@@ -17,23 +17,43 @@ const TIMELINE_STALE_TIME_MS = 30 * 1000;
 const TIMELINE_REFRESH_DEBOUNCE_MS = 2000;
 
 /**
- * Deux plages, pas trois : « dernier tour » a été retiré, il ne servait pas.
- * Sa disparition emporte tout le mécanisme qui l'alimentait — l'état
- * `lastTurnStartedAt` et son repli par approximation. Le champ reste dans le
- * contrat d'API (`TimelineWindow.lastTurnStartedAt`), simplement plus lu ici.
+ * Les deux premières plages sont **vivantes** : leur fenêtre glisse avec
+ * l'horloge et ancre « maintenant » à un endroit fixe de l'écran. La troisième
+ * garde le régime de la spec 006 — les bornes du contenu, données par le
+ * serveur.
+ *
+ * « Dernière heure » a été retirée : à une heure d'échelle, une session de 50 s
+ * occupe 1,4 % de la largeur. C'est le défaut mesuré le 2026-08-11 (un axe de
+ * 18 h pour une minute de contenu), simplement moins spectaculaire — voir
+ * plans/007-timeline-live.md.
  */
 export const TIMELINE_RANGES = [
+  { value: '10m', label: '10 min' },
+  { value: '30m', label: '30 min' },
   { value: 'session', label: 'Session entière' },
-  { value: 'hour', label: 'Dernière heure' },
 ] as const;
 
 export type TimelineRange = (typeof TIMELINE_RANGES)[number]['value'];
 
-const HOUR_LOOKBACK_MS = 60 * 60 * 1000;
+/**
+ * Portée de passé d'une plage vivante, en millisecondes. `null` = régime
+ * d'analyse : pas de fenêtre glissante, on suit le contenu.
+ */
+export const TIMELINE_RANGE_SPAN_MS: Record<TimelineRange, number | null> = {
+  '10m': 10 * 60 * 1000,
+  '30m': 30 * 60 * 1000,
+  session: null,
+};
 
-/** « Session entière » omet `since` et laisse le serveur renvoyer sa fenêtre complète. */
+/**
+ * « Session entière » omet `since` et laisse le serveur renvoyer sa fenêtre
+ * complète. Une plage vivante, elle, borne aussi la *requête* : sans quoi le
+ * serveur renverrait les sessions de la veille, dont la seule présence étirait
+ * l'axe — c'est la moitié de la correction, l'autre étant `livingWindow`.
+ */
 function sinceFromRange(range: TimelineRange): string | undefined {
-  return range === 'session' ? undefined : new Date(Date.now() - HOUR_LOOKBACK_MS).toISOString();
+  const spanMs = TIMELINE_RANGE_SPAN_MS[range];
+  return spanMs === null ? undefined : new Date(Date.now() - spanMs).toISOString();
 }
 
 /**
@@ -47,7 +67,21 @@ function sinceFromRange(range: TimelineRange): string | undefined {
  * requête pour les deux, et donc aucun refetch quand on bascule de l'une à
  * l'autre. Un `sessionId` réel, lui, restreint la requête.
  */
-export function useTimeline(range: TimelineRange, sessionFilter: TimelineSessionFilter) {
+export interface UseTimelineOptions {
+  /**
+   * `false` = lire le cache sans ouvrir de WebSocket. Réservé aux consommateurs
+   * secondaires du même écran (le bandeau « ce qui tourne » partage la clé de
+   * requête du Gantt, donc ses invalidations) : sans cela, chaque consommateur
+   * ouvrirait sa propre connexion.
+   */
+  subscribe?: boolean;
+}
+
+export function useTimeline(
+  range: TimelineRange,
+  sessionFilter: TimelineSessionFilter,
+  { subscribe = true }: UseTimelineOptions = {},
+) {
   const queryClient = useQueryClient();
   const [sessionOptions, setSessionOptions] = useState<TimelineSessionOption[]>([]);
 
@@ -106,6 +140,16 @@ export function useTimeline(range: TimelineRange, sessionFilter: TimelineSession
     }, TIMELINE_REFRESH_DEBOUNCE_MS);
   }, [queryClient]);
 
+  // Un tour vient de commiter son usage : contrairement à `PostToolUse`, ce
+  // signal arrive une fois par tour, pas une fois par outil — aucun débounce
+  // ne se justifie (plan 006, décision #6/#Temps réel). C'est la correction du
+  // bug mesuré : le serveur diffusait `Stop` avant le commit de l'ingestion,
+  // et le débounce de 2s expirait souvent avant, laissant l'écran périmé
+  // jusqu'au tour suivant.
+  const handleUsageIngested = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['timeline', 'list'] });
+  }, [queryClient]);
+
   useEffect(
     () => () => {
       if (debounceTimeoutRef.current !== undefined) window.clearTimeout(debounceTimeoutRef.current);
@@ -113,7 +157,11 @@ export function useTimeline(range: TimelineRange, sessionFilter: TimelineSession
     [],
   );
 
-  const { status: streamStatus } = useEventStream({ onEvent: handleStreamEvent });
+  const { status: streamStatus } = useEventStream({
+    onEvent: handleStreamEvent,
+    onUsageIngested: handleUsageIngested,
+    enabled: subscribe,
+  });
 
   return {
     timeline: query.data,

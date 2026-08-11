@@ -26,9 +26,9 @@ export function SectionCard({
     <Card className={className}>
       <CardHeader className="flex-row items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          {icon ? <span className="text-neutral-400">{icon}</span> : null}
+          {icon ? <span className="text-muted-foreground">{icon}</span> : null}
           <div>
-            <CardTitle className="text-base font-semibold text-neutral-100">{title}</CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">{title}</CardTitle>
             {description ? <CardDescription>{description}</CardDescription> : null}
           </div>
         </div>

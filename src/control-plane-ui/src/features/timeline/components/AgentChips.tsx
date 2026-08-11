@@ -1,6 +1,6 @@
 import { cn } from '@/core';
 import { TimelineDomain } from '../domain/TimelineDomain';
-import { MAIN_SESSION_AGENT, type TimelineSession } from '../timelineTypes';
+import type { TimelineSession } from '../timelineTypes';
 
 export interface AgentChipsProps {
   session: TimelineSession;
@@ -11,37 +11,34 @@ export interface AgentChipsProps {
 
 /**
  * Bandeau de puces sous le Gantt — **une puce par instance d'agent**, jamais par
- * type.
+ * type, la session principale comprise (plan 006, décision #4). Elle est
+ * fournie par le serveur comme n'importe quelle autre lane : plus de cas
+ * particulier synthétisé côté client, `AgentChips` mappe `session.lanes` tel
+ * quel.
  *
- * Ce n'est pas une préférence d'affichage : mesuré sur les données du poste,
- * `backend-dev` a été invoqué 10 fois avec 10 identités distinctes, dont deux
- * en parallèle. `agentType` est un gabarit de configuration, pas une identité —
- * une puce « backend-dev » fusionnerait dix exécutions sans rapport. Voir
- * plans/005-gantt-exploitable.md §"Ce que la mesure a établi".
+ * Ce n'est pas une préférence d'affichage pour les sous-agents non plus :
+ * mesuré sur les données du poste, `backend-dev` a été invoqué 10 fois avec 10
+ * identités distinctes, dont deux en parallèle. `agentType` est un gabarit de
+ * configuration, pas une identité — une puce « backend-dev » fusionnerait dix
+ * exécutions sans rapport. Voir plans/005-gantt-exploitable.md §"Ce que la
+ * mesure a établi".
  *
- * La session principale y figure comme une puce parmi les autres : elle appelle
- * des outils elle aussi, et c'est à elle qu'on compare les sous-agents.
+ * Ce bandeau **est** la légende (plan §"Contrainte visuelle") : pastille de
+ * couleur + libellé, jamais l'identité seule sur la couleur.
  */
 export function AgentChips({ session, selectedAgentId, onSelect }: AgentChipsProps) {
-  const chips = [
-    {
-      id: MAIN_SESSION_AGENT,
-      label: 'Session principale',
-      meta: `${session.messages} msg · ${TimelineDomain.formatTokens(session.billableTokens)} tk`,
-      color: null as string | null,
-      ongoing: session.endedAt === null,
-    },
-    ...session.lanes.map((lane) => ({
-      id: lane.agentId,
-      label: lane.agentType,
-      meta: `${lane.messages} msg · ${TimelineDomain.formatTokens(lane.billableTokens)} tk`,
-      color: TimelineDomain.agentColor(lane.agentType),
-      ongoing: TimelineDomain.isOngoing(lane),
-    })),
-  ];
+  const chips = session.lanes.map((lane) => ({
+    id: lane.agentId,
+    isMain: lane.isMainSession,
+    label: lane.isMainSession ? 'Session principale' : lane.agentType ?? 'Agent',
+    brief: lane.taskDescription,
+    meta: `${lane.messages} msg · ${TimelineDomain.formatTokens(lane.billableTokens)} tk`,
+    color: TimelineDomain.laneColor(lane),
+    ongoing: TimelineDomain.isOngoing(lane),
+  }));
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Agents de la session">
+    <div className="flex flex-wrap items-center gap-1.5 pl-1" role="group" aria-label="Agents de la session">
       {chips.map((chip) => {
         const selected = selectedAgentId === chip.id;
 
@@ -53,24 +50,26 @@ export function AgentChips({ session, selectedAgentId, onSelect }: AgentChipsPro
             // une bascule, pas un cul-de-sac.
             onClick={() => onSelect(selected ? null : chip.id)}
             aria-pressed={selected}
-            title={chip.id === MAIN_SESSION_AGENT ? 'Session principale' : chip.id}
+            // Le brief plutôt que l'UUID : un sous-agent s'identifie par ce
+            // qu'on lui a demandé (plan 007, décision #7).
+            title={chip.isMain ? 'Session principale' : `${chip.id}${chip.brief ? ` — ${chip.brief}` : ''}`}
             className={cn(
-              'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
+              'flex max-w-xs items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
               selected
-                ? 'border-neutral-500 bg-neutral-800 text-neutral-100'
-                : 'border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200',
+                ? 'border-muted-foreground bg-accent text-foreground'
+                : 'border-border bg-card/40 text-muted-foreground hover:border-muted-foreground hover:text-foreground',
             )}
           >
             <span
               aria-hidden="true"
               className={cn('h-2 w-2 shrink-0 rounded-full', chip.ongoing && 'animate-pulse')}
-              style={{ backgroundColor: chip.color ?? '#e5e5e5' }}
+              style={{ backgroundColor: chip.color }}
             />
-            <span className="font-medium">{chip.label}</span>
-            {chip.id !== MAIN_SESSION_AGENT ? (
-              <span className="font-mono text-xs text-neutral-500">{chip.id.slice(0, 6)}</span>
+            <span className={cn('shrink-0 font-medium', !chip.isMain && 'text-foreground')}>{chip.label}</span>
+            {!chip.isMain && chip.brief ? (
+              <span className="truncate text-muted-foreground">{chip.brief}</span>
             ) : null}
-            <span className="tabular-nums text-xs text-neutral-500">{chip.meta}</span>
+            <span className="shrink-0 tabular-nums text-muted-foreground">{chip.meta}</span>
           </button>
         );
       })}
