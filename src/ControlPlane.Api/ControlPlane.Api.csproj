@@ -17,4 +17,27 @@
     <ProjectReference Include="..\ControlPlane.Infrastructure\ControlPlane.Infrastructure.csproj" />
   </ItemGroup>
 
+  <!--
+    Le SPA est servi depuis wwwroot, qui est ignore par git : sur un clone frais,
+    `dotnet run` servirait une page blanche sans le moindre message d'erreur. Ce
+    target le construit quand il manque, pour qu'une seule commande suffise a
+    demarrer le projet.
+
+    Il ne se declenche *que* dans ce cas : reconstruire le SPA a chaque build
+    ralentirait toute la boucle backend pour rien. Apres une modification du
+    front, deux chemins — `npm run dev` (HMR, le cas normal) ou un build force
+    par `dotnet build -p:BuildSpa=true`.
+  -->
+  <PropertyGroup>
+    <SpaRoot>$(MSBuildProjectDirectory)\..\control-plane-ui\</SpaRoot>
+    <SpaIndexFile>$(MSBuildProjectDirectory)\wwwroot\index.html</SpaIndexFile>
+  </PropertyGroup>
+
+  <Target Name="BuildSpa" BeforeTargets="Build"
+          Condition="'$(BuildSpa)' == 'true' Or !Exists('$(SpaIndexFile)')">
+    <Message Importance="high" Text="SPA absent de wwwroot — construction avec npm (une seule fois)." Condition="!Exists('$(SpaIndexFile)')" />
+    <Exec Command="npm ci" WorkingDirectory="$(SpaRoot)" Condition="!Exists('$(SpaRoot)node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(SpaRoot)" />
+  </Target>
+
 </Project>
