@@ -1,17 +1,27 @@
 import { useEffect } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { EventTimeline } from '@/features/observability';
-import { GanttChart, TIMELINE_ACTIVE_SESSIONS } from '@/features/timeline';
+import { GanttChart, RunningAgentsBar, TIMELINE_ACTIVE_SESSIONS } from '@/features/timeline';
 import { useAppStore } from '@/store/useAppStore';
 
 interface ControlTowerSearch {
-  /** Agent dont la piste de zoom est ouverte. Dans l'URL, donc partageable et résistant au rechargement. */
+  /**
+   * Jeton `sessionId::agentId` de la piste ouverte. Dans l'URL, donc
+   * partageable et résistant au rechargement. Qualifié par la session depuis le
+   * plan 007 : « main » désigne la principale de *chaque* session, et un
+   * identifiant nu ouvrait la piste dans toutes à la fois.
+   */
   agent?: string;
 }
 
 /**
  * Tour de contrôle — ce qui tourne **maintenant**. Portée forcée aux sessions
  * actives, alimentée par le WebSocket.
+ *
+ * Trois strates, de la réponse immédiate au diagnostic : le bandeau dit *qui*
+ * tourne, le Gantt dit *quand et en parallèle de quoi*, le flux d'événements
+ * dit *ce qui s'est exactement passé*. On descend d'une strate seulement quand
+ * la précédente ne suffit plus.
  *
  * Aucun montant ici : le coût est du post-mortem, il vit sur l'écran d'analyse
  * (plans/005-gantt-exploitable.md, décision #10). La tour de contrôle reste
@@ -28,14 +38,13 @@ function ControlTower() {
     setSessionFilter(TIMELINE_ACTIVE_SESSIONS);
   }, [setSessionFilter]);
 
+  const selectAgent = (token: string | null) =>
+    void navigate({ search: { agent: token ?? undefined }, replace: true });
+
   return (
     <>
-      <GanttChart
-        selectedAgentId={agent ?? null}
-        onSelectAgent={(agentId) =>
-          void navigate({ search: { agent: agentId ?? undefined }, replace: true })
-        }
-      />
+      <RunningAgentsBar selectedAgentId={agent ?? null} onSelectAgent={selectAgent} />
+      <GanttChart selectedAgentId={agent ?? null} onSelectAgent={selectAgent} />
       <EventTimeline />
     </>
   );

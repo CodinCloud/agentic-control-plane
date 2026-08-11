@@ -58,3 +58,15 @@ internal sealed record EventStreamMessage(string Type, EventStreamItem Data)
 {
     public static EventStreamMessage ForEvent(EventStreamItem item) => new("event", item);
 }
+
+/// <summary>
+/// Broadcast after a transcript ingestion commits new <c>ModelUsage</c> rows — the signal
+/// that was missing for a client to invalidate its timeline right after the ingestion a
+/// <c>Stop</c>/<c>SubagentStop</c> triggered, instead of racing it (plans/006-gantt-vivant.md
+/// décision #6). Deliberately flat, no nested <c>data</c>: this isn't a hook event, so it
+/// doesn't share <see cref="EventStreamMessage"/>'s shape.
+/// </summary>
+internal sealed record UsageIngestedMessage(string Type, string SessionId)
+{
+    public static UsageIngestedMessage For(string sessionId) => new("usage-ingested", sessionId);
+}

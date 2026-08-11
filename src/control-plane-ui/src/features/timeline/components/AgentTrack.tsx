@@ -10,7 +10,7 @@ import { useToolCalls } from '../hooks/useToolCalls';
 import { useNowTick } from '../hooks/useNowTick';
 import { TimelineDomain } from '../domain/TimelineDomain';
 import { TimelineAxis } from './TimelineAxis';
-import { MAIN_SESSION_AGENT, type AgentLane, type TimelineSession, type ToolCall } from '../timelineTypes';
+import { MAIN_SESSION_AGENT, type TimelineSession, type ToolCall } from '../timelineTypes';
 
 export interface AgentTrackProps {
   session: TimelineSession;
@@ -37,10 +37,11 @@ export function AgentTrack({ session, agentId, onOpenDetail }: AgentTrackProps) 
   const now = useNowTick();
 
   const isMain = agentId === MAIN_SESSION_AGENT;
-  const lane: AgentLane | undefined = session.lanes.find((candidate) => candidate.agentId === agentId);
+  const lane = session.lanes.find((candidate) => candidate.agentId === agentId);
 
   // La piste se recale sur les bornes de l'agent — ou, pour la session
-  // principale, sur celles de la session elle-même.
+  // principale, sur celles de la session elle-même (repli défensif : le
+  // serveur émet toujours une lane « main », voir plan 006 décision #4).
   const window = useMemo(
     () =>
       TimelineDomain.agentWindow(
@@ -54,22 +55,25 @@ export function AgentTrack({ session, agentId, onOpenDetail }: AgentTrackProps) 
   const label = isMain ? 'Session principale' : (lane?.agentType ?? 'Agent');
 
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-3">
+    <div className="rounded-lg border border-border bg-card/30 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="h-4 w-4 shrink-0 text-neutral-500" aria-hidden="true" />
-          <span className="truncate text-sm font-medium text-neutral-200">{label}</span>
-          {!isMain ? <span className="font-mono text-xs text-neutral-500">{agentId.slice(0, 8)}</span> : null}
+          <Wrench className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="truncate text-sm font-medium text-foreground">{label}</span>
+          {!isMain ? <span className="font-mono text-xs text-muted-foreground">{agentId.slice(0, 8)}</span> : null}
           {calls ? (
-            <span className="text-xs text-neutral-500">
+            <span className="text-xs text-muted-foreground">
               {calls.length} glyphe(s) · {calls.reduce((total, call) => total + call.repeatCount, 0)} appel(s)
             </span>
           ) : null}
         </div>
 
-        {!isMain && onOpenDetail ? (
+        {/* La session principale n'a ni brief ni rapport — `AgentRun` n'existe
+            que pour les sous-agents (plan 006, décision #12). Le panneau
+            l'explique plutôt que de se casser, voir AgentDetailPanel. */}
+        {onOpenDetail ? (
           <Button variant="outline" size="sm" onClick={() => onOpenDetail(agentId)}>
-            Brief et rapport
+            {isMain ? 'Détail' : 'Brief et rapport'}
           </Button>
         ) : null}
       </div>
@@ -88,13 +92,13 @@ export function AgentTrack({ session, agentId, onOpenDetail }: AgentTrackProps) 
           }
         />
       ) : !calls || calls.length === 0 ? (
-        <div className="rounded-md border border-dashed border-neutral-800 p-3 text-sm text-neutral-500">
+        <div className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
           Aucun appel d'outil enregistré pour cet agent. Les hooks n'étaient peut-être pas branchés à ce
           moment-là — les lanes viennent des transcripts, les outils viennent des hooks.
         </div>
       ) : (
         <>
-          <TimelineAxis window={{ ...window, lastTurnStartedAt: null }} />
+          <TimelineAxis window={window} />
 
           <div className="relative h-10">
             {calls.map((call) => {
@@ -114,14 +118,14 @@ export function AgentTrack({ session, agentId, onOpenDetail }: AgentTrackProps) 
                   className={cn(
                     'absolute top-1 -translate-x-1/2 rounded-md border px-1.5 py-1 text-sm leading-none transition-colors',
                     call.failed
-                      ? 'border-red-800 bg-red-950/50'
-                      : 'border-neutral-700 bg-neutral-800/80 hover:border-neutral-500',
-                    selected && 'border-sky-500 bg-sky-950/60',
+                      ? 'border-destructive/50 bg-destructive/15'
+                      : 'border-border bg-secondary/80 hover:border-muted-foreground',
+                    selected && 'border-primary bg-primary/15',
                   )}
                 >
                   <span aria-hidden="true">{ObservabilityDomain.toolEmoji(call.toolName)}</span>
                   {call.repeatCount > 1 ? (
-                    <span className="ml-0.5 text-xs tabular-nums text-neutral-400">×{call.repeatCount}</span>
+                    <span className="ml-0.5 text-xs text-muted-foreground">×{call.repeatCount}</span>
                   ) : null}
                 </button>
               );
@@ -145,15 +149,15 @@ export function AgentTrack({ session, agentId, onOpenDetail }: AgentTrackProps) 
  */
 function ToolCallDetail({ call }: { call: ToolCall }) {
   return (
-    <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950/60 p-3">
+    <div className="mt-2 rounded-md border border-border bg-card/60 p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span aria-hidden="true">{ObservabilityDomain.toolEmoji(call.toolName)}</span>
-        <span className="text-sm font-medium text-neutral-200">{call.toolName}</span>
+        <span className="text-sm font-medium text-foreground">{call.toolName}</span>
         {call.repeatCount > 1 ? (
           <StatusBadge tone="neutral">{call.repeatCount} appels consécutifs</StatusBadge>
         ) : null}
         {call.failed ? <StatusBadge tone="destructive">échec</StatusBadge> : null}
-        <span className="text-xs tabular-nums text-neutral-500">
+        <span className="text-xs text-muted-foreground">
           {ObservabilityDomain.formatTimestamp(call.at)} · {ObservabilityDomain.formatDuration(call.durationMs)}
         </span>
       </div>
@@ -161,25 +165,25 @@ function ToolCallDetail({ call }: { call: ToolCall }) {
       {call.extractable ? (
         <dl className="flex flex-col gap-2">
           <div>
-            <dt className="text-xs uppercase tracking-wide text-neutral-500">Entrée</dt>
-            <dd className="break-words font-mono text-xs text-neutral-300">{call.summary ?? '—'}</dd>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Entrée</dt>
+            <dd className="break-words font-mono text-xs text-foreground">{call.summary ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-wide text-neutral-500">Sortie</dt>
-            <dd className={cn('break-words font-mono text-xs', call.failed ? 'text-red-400' : 'text-neutral-300')}>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Sortie</dt>
+            <dd className={cn('break-words font-mono text-xs', call.failed ? 'text-destructive' : 'text-foreground')}>
               {call.result ?? '—'}
             </dd>
           </div>
         </dl>
       ) : (
-        <p className="flex items-start gap-2 text-sm text-neutral-500">
+        <p className="flex items-start gap-2 text-sm text-muted-foreground">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           Aucun extrait pour cet outil — aucune règle de lecture ne le connaît encore.
         </p>
       )}
 
       {call.repeatCount > 1 ? (
-        <p className="mt-2 text-xs text-neutral-600">
+        <p className="mt-2 text-xs text-muted-foreground">
           Extrait du premier des {call.repeatCount} appels consécutifs.
         </p>
       ) : null}

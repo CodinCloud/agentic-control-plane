@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/vloc/EmptyState';
 import { StatusBadge } from '@/components/vloc/StatusBadge';
 import { useAgentRunDetail } from '../hooks/useAgentRunDetail';
 import { TimelineDomain } from '../domain/TimelineDomain';
+import { MAIN_SESSION_AGENT } from '../timelineTypes';
 
 export interface AgentDetailPanelProps {
   /** null = closed. */
@@ -16,8 +17,8 @@ export interface AgentDetailPanelProps {
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs uppercase tracking-wide text-neutral-500">{label}</span>
-      <span className="truncate text-sm text-neutral-200" title={value}>
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="truncate text-sm text-foreground" title={value}>
         {value}
       </span>
     </div>
@@ -31,9 +32,15 @@ function MetaField({ label, value }: { label: string; value: string }) {
  * components/ui yet (no Radix dependency in this project) — a self-made
  * overlay is the smallest thing that satisfies the plan's "lecture seule"
  * scope, matching the Gantt component's own hand-rolled approach.
+ *
+ * La lane principale n'a ni brief ni rapport — personne ne l'a briefée,
+ * `AgentRun` n'existe que pour les sous-agents (plan 006, décision #12). Ce
+ * panneau le **dit** plutôt que d'interroger un endpoint qui n'a rien à
+ * répondre.
  */
 export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
   const open = agentId !== null;
+  const isMainSession = agentId === MAIN_SESSION_AGENT;
   const { detail, isLoading, isError, error, refetch } = useAgentRunDetail(agentId);
 
   useEffect(() => {
@@ -52,17 +59,17 @@ export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
       <button
         type="button"
         aria-label="Fermer le panneau de détail"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-background/60"
         onClick={onClose}
       />
 
-      <div className="relative flex h-full w-full max-w-xl flex-col border-l border-neutral-800 bg-neutral-950 shadow-xl">
-        <div className="flex items-center justify-between gap-2 border-b border-neutral-800 p-4">
+      <div className="relative flex h-full w-full max-w-xl flex-col border-l border-border bg-popover shadow-xl">
+        <div className="flex items-center justify-between gap-2 border-b border-border p-4">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold text-neutral-100">
-              {detail?.agentType ?? 'Détail de l’agent'}
+            <h2 className="truncate text-base font-semibold text-foreground">
+              {isMainSession ? 'Session principale' : detail?.agentType ?? 'Détail de l’agent'}
             </h2>
-            <p className="truncate text-xs text-neutral-500" title={agentId ?? undefined}>
+            <p className="truncate text-xs text-muted-foreground" title={agentId ?? undefined}>
               {agentId}
             </p>
           </div>
@@ -72,7 +79,12 @@ export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4">
-          {isLoading ? (
+          {isMainSession ? (
+            <EmptyState
+              title="Pas de brief pour la session principale"
+              description="Personne ne l'a briefée : AgentRun — brief et rapport — n'existe que pour les sous-agents qu'elle délègue. Sa piste d'outils juste au-dessus montre ce qu'elle a fait, pas ce qu'on lui a demandé."
+            />
+          ) : isLoading ? (
             <div className="flex flex-col gap-3">
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-40 w-full" />
@@ -91,10 +103,10 @@ export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
             />
           ) : (
             <div className="flex flex-col gap-5">
-              <div className="grid grid-cols-2 gap-3 rounded-md border border-neutral-800 bg-neutral-900/40 p-3">
-                <MetaField label="Type d'agent" value={detail.agentType} />
+              <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-card/40 p-3">
+                <MetaField label="Type d'agent" value={detail.agentType ?? '—'} />
                 <MetaField label="Modèle" value={detail.model} />
-                <MetaField label="Profondeur de spawn" value={String(detail.spawnDepth)} />
+                <MetaField label="Profondeur de spawn" value={detail.spawnDepth === null ? '—' : String(detail.spawnDepth)} />
                 <MetaField
                   label="Statut"
                   value={TimelineDomain.isOngoing(detail) ? 'en cours' : 'terminé'}
@@ -114,31 +126,31 @@ export function AgentDetailPanel({ agentId, onClose }: AgentDetailPanelProps) {
 
               <div>
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Description de la tâche
                   </h3>
                 </div>
-                <p className="rounded-md border border-neutral-800 bg-neutral-900/40 p-3 text-sm text-neutral-300">
-                  {detail.taskDescription}
+                <p className="rounded-md border border-border bg-card/40 p-3 text-sm text-foreground">
+                  {detail.taskDescription ?? '—'}
                 </p>
               </div>
 
               <div>
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Brief</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brief</h3>
                   {detail.briefTruncated ? <StatusBadge tone="warning">tronqué</StatusBadge> : null}
                 </div>
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-neutral-800 bg-neutral-900/60 p-3 font-mono text-xs leading-relaxed text-neutral-300">
+                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border bg-card/60 p-3 font-mono text-xs leading-relaxed text-foreground">
                   {detail.brief}
                 </pre>
               </div>
 
               <div>
                 <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Rapport</h3>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rapport</h3>
                   {detail.reportTruncated ? <StatusBadge tone="warning">tronqué</StatusBadge> : null}
                 </div>
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-neutral-800 bg-neutral-900/60 p-3 font-mono text-xs leading-relaxed text-neutral-300">
+                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-md border border-border bg-card/60 p-3 font-mono text-xs leading-relaxed text-foreground">
                   {detail.report}
                 </pre>
               </div>

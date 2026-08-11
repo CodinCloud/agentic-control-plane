@@ -12,10 +12,10 @@ export interface StatCardProps {
 }
 
 const TONE_VALUE_CLASS: Record<NonNullable<StatCardProps['tone']>, string> = {
-  default: 'text-neutral-100',
-  success: 'text-emerald-400',
-  destructive: 'text-red-400',
-  warning: 'text-amber-400',
+  default: 'text-foreground',
+  success: 'text-status-good',
+  destructive: 'text-status-critical',
+  warning: 'text-status-warning',
 };
 
 /** KPI tile — the primary building block of the dashboard (Slice 6). */
@@ -23,12 +23,12 @@ export function StatCard({ label, value, hint, icon, tone = 'default', className
   return (
     <Card className={cn('flex flex-col', className)}>
       <CardHeader className="flex-row items-center justify-between gap-2 pb-0">
-        <CardTitle className="text-sm uppercase tracking-wide text-neutral-500">{label}</CardTitle>
-        {icon ? <span className="text-neutral-500">{icon}</span> : null}
+        <CardTitle className="text-sm uppercase tracking-wide text-muted-foreground">{label}</CardTitle>
+        {icon ? <span className="text-muted-foreground">{icon}</span> : null}
       </CardHeader>
       <CardContent className="pt-1">
-        <div className={cn('text-3xl font-semibold tabular-nums', TONE_VALUE_CLASS[tone])}>{value}</div>
-        {hint ? <div className="mt-1 text-sm text-neutral-500">{hint}</div> : null}
+        <div className={cn('text-3xl font-semibold', TONE_VALUE_CLASS[tone])}>{value}</div>
+        {hint ? <div className="mt-1 text-sm text-muted-foreground">{hint}</div> : null}
       </CardContent>
     </Card>
   );

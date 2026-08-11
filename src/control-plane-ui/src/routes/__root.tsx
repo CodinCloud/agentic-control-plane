@@ -14,14 +14,14 @@ const NAV = [
  */
 function RootLayout() {
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 bg-neutral-900/40 px-6 py-3">
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-card/40 px-6 py-3">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
-            <Radar className="h-5 w-5 text-neutral-400" aria-hidden="true" />
+            <Radar className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             <div>
-              <h1 className="text-base font-semibold text-neutral-100">Control Plane</h1>
-              <p className="text-sm text-neutral-500">Observabilité de la boucle agentique — localhost:4317</p>
+              <h1 className="text-base font-semibold text-foreground">Control Plane</h1>
+              <p className="text-sm text-muted-foreground">Observabilité de la boucle agentique — localhost:4317</p>
             </div>
           </div>
 
@@ -32,8 +32,8 @@ function RootLayout() {
                 to={item.to}
                 // `exact` sur l'accueil, sans quoi « / » resterait actif sur /sessions.
                 activeOptions={{ exact: item.to === '/' }}
-                className="rounded-md px-3 py-1.5 text-sm text-neutral-400 transition-colors hover:bg-neutral-800/60 hover:text-neutral-200"
-                activeProps={{ className: cn('bg-neutral-800 text-neutral-100') }}
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                activeProps={{ className: cn('bg-accent text-foreground') }}
               >
                 {item.label}
               </Link>

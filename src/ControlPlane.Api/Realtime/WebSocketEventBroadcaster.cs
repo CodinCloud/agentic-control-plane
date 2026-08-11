@@ -16,7 +16,17 @@ internal sealed class WebSocketEventBroadcaster : IEventBroadcaster
     private readonly Channel<HookEvent> _channel = Channel.CreateUnbounded<HookEvent>(
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
 
+    // Separate channel: a "usage-ingested" notification isn't a HookEvent and comes from a
+    // different producer (TranscriptIngestionBackgroundService, in Infrastructure) — merging
+    // it into the HookEvent channel would force that producer to fabricate a fake one.
+    private readonly Channel<string> _usageIngestedChannel = Channel.CreateUnbounded<string>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+
     public ChannelReader<HookEvent> Reader => _channel.Reader;
 
+    public ChannelReader<string> UsageIngestedReader => _usageIngestedChannel.Reader;
+
     public void Publish(HookEvent hookEvent) => _channel.Writer.TryWrite(hookEvent);
+
+    public void PublishUsageIngested(string sessionId) => _usageIngestedChannel.Writer.TryWrite(sessionId);
 }

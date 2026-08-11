@@ -20,7 +20,7 @@ const ALL_VALUE = '';
 export function FilterSelect({ label, value, onChange, options, allLabel = 'Tous', disabled }: FilterSelectProps) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs uppercase tracking-wide text-neutral-500">{label}</span>
+      <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
       <Select
         value={value}
         disabled={disabled}

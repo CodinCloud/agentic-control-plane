@@ -27,8 +27,8 @@ export function EventFiltersBar() {
   const hasActiveFilter = Object.values(filters).some((value) => value !== null);
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-3">
-      <div className="mr-1 flex items-center gap-1 self-center text-neutral-500">
+    <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card/40 p-3">
+      <div className="mr-1 flex items-center gap-1 self-center text-muted-foreground">
         <SlidersHorizontal className="h-3.5 w-3.5" />
         <span className="text-xs uppercase tracking-wide">Filtres</span>
       </div>

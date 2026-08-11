@@ -24,7 +24,7 @@ export function EventTimeline() {
       <div className="flex flex-col gap-3">
         <EventFiltersBar />
 
-        <div className="overflow-hidden rounded-lg border border-neutral-800">
+        <div className="overflow-hidden rounded-lg border border-border">
           {isLoading ? (
             <div className="flex flex-col gap-1 p-3">
               {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
@@ -59,7 +59,7 @@ export function EventTimeline() {
                 ))}
               </div>
               {hasNextPage ? (
-                <div className="flex justify-center border-t border-neutral-800 p-2">
+                <div className="flex justify-center border-t border-border p-2">
                   <Button
                     variant="ghost"
                     size="sm"

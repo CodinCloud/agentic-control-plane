@@ -5,9 +5,24 @@
  * active one — see plan §"Pourquoi" (a `/compact` opens a new session and
  * silently orphans the previous one's agents on screen).
  */
+
+/** Grille de buckets partagée par toutes les lanes de la réponse (plan 006, décision #7). */
+export interface TimelineGrid {
+  bucketMs: number;
+  bucketCount: number;
+}
+
 export interface TimelineWindow {
   since: string;
   until: string;
+  /**
+   * Bornes réelles du contenu — remplace `TimelineDomain.fitWindowToSessions`
+   * (plan 006, décision #7) : le serveur devient la seule autorité sur l'axe,
+   * puisqu'il doit déjà connaître ces bornes pour bucketiser la densité.
+   */
+  contentSince: string;
+  contentUntil: string;
+  grid: TimelineGrid;
   /**
    * Exact start of the resolved session's most recent `UserPromptSubmit` —
    * the real "dernier tour" boundary, independent of `since`/`until`. Null
@@ -18,11 +33,26 @@ export interface TimelineWindow {
   lastTurnStartedAt: string | null;
 }
 
-/** One lane = one agent instance, never one agent type. */
+/** Un bucket de densité recouvert par une lane — index relatif à `TimelineGrid`, jamais absolu. */
+export interface LaneDensity {
+  firstBucket: number;
+  buckets: number[];
+}
+
+/**
+ * One lane = one agent instance, never one agent type. Depuis le plan 006, la
+ * session principale est une lane comme les autres — `agentId: "main"`,
+ * `agentType: null`, `isMainSession: true` — plutôt qu'une absence à combler
+ * côté client.
+ */
 export interface AgentLane {
   agentId: string;
-  agentType: string;
-  taskDescription: string;
+  /** null = session principale — voir `isMainSession`. */
+  agentType: string | null;
+  /** null pour la session principale : personne ne l'a briefée, `AgentRun` n'existe que pour les sous-agents. */
+  taskDescription: string | null;
+  /** Sentinelle serveur (plan 006, décision #4) : dispense le client de connaître `agentId === "main"` pour savoir ce qu'il affiche. */
+  isMainSession: boolean;
   startedAt: string;
   /** null = agent still running. */
   endedAt: string | null;
@@ -33,7 +63,16 @@ export interface AgentLane {
   /** Coût équivalent API de ce seul run — permet de ventiler le coût par agent sans requête de plus. */
   costUsd: number | null;
   model: string;
-  spawnDepth: number;
+  /** null pour la session principale. */
+  spawnDepth: number | null;
+  /** ⚡ tous événements de cette lane. */
+  eventCount: number;
+  /** 🔧 PostToolUse + PostToolUseFailure seulement (plan 006, décision #8). */
+  toolCallCount: number;
+  /** 🕐 écart moyen entre événements consécutifs. */
+  avgGapMs: number;
+  /** Texture de densité d'appels d'outil — voir TimelineDomain.densityCells. */
+  density: LaneDensity;
 }
 
 /**

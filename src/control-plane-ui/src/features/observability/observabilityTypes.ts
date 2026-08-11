@@ -133,7 +133,13 @@ export interface StatsResponse {
   permissions: PermissionsStat;
 }
 
-export interface ObservabilityStreamMessage {
-  type: 'event';
-  data: EventListItem;
-}
+/**
+ * `usage-ingested` est émis après le `SaveChangesAsync` de l'ingestion du
+ * transcript (plans/006-gantt-vivant.md, décision #6) — jamais avant, contrairement
+ * à `Stop` qui se diffuse pendant que l'ingestion qu'il déclenche est encore en
+ * vol. C'est l'événement qui manque pour que le Gantt de la timeline
+ * s'actualise au bon moment.
+ */
+export type ObservabilityStreamMessage =
+  | { type: 'event'; data: EventListItem }
+  | { type: 'usage-ingested'; sessionId: string };

@@ -5,8 +5,8 @@ import { cn } from '@/core';
 const alertVariants = cva('flex items-start gap-3 rounded-lg border p-4 text-base', {
   variants: {
     variant: {
-      default: 'border-neutral-800 bg-neutral-900/60 text-neutral-300',
-      destructive: 'border-red-900 bg-red-950/60 text-red-300',
+      default: 'border-border bg-card text-muted-foreground',
+      destructive: 'border-destructive/30 bg-destructive/10 text-destructive',
     },
   },
   defaultVariants: { variant: 'default' },
@@ -19,9 +19,9 @@ export function Alert({ className, variant, ...props }: AlertProps) {
 }
 
 export function AlertTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h4 className={cn('font-medium text-neutral-100', className)} {...props} />;
+  return <h4 className={cn('font-medium text-foreground', className)} {...props} />;
 }
 
 export function AlertDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-neutral-400', className)} {...props} />;
+  return <p className={cn('text-muted-foreground', className)} {...props} />;
 }
