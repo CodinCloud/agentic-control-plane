@@ -23,6 +23,12 @@ interface ControlTowerSearch {
  * dit *ce qui s'est exactement passé*. On descend d'une strate seulement quand
  * la précédente ne suffit plus.
  *
+ * La place suit cette hiérarchie : **la chronologie prend la moitié du
+ * viewport**, le flux d'événements se contente du reste. Il sert au diagnostic
+ * ponctuel, pas à la surveillance continue — lui donner autant de surface
+ * qu'au Gantt revenait à dire le contraire. Chaque bloc défile chez lui ; la
+ * page, elle, ne défile plus.
+ *
  * Aucun montant ici : le coût est du post-mortem, il vit sur l'écran d'analyse
  * (plans/005-gantt-exploitable.md, décision #10). La tour de contrôle reste
  * strictement opérationnelle.
@@ -42,11 +48,22 @@ function ControlTower() {
     void navigate({ search: { agent: token ?? undefined }, replace: true });
 
   return (
-    <>
-      <RunningAgentsBar selectedAgentId={agent ?? null} onSelectAgent={selectAgent} />
-      <GanttChart selectedAgentId={agent ?? null} onSelectAgent={selectAgent} />
-      <EventTimeline />
-    </>
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="shrink-0">
+        <RunningAgentsBar selectedAgentId={agent ?? null} onSelectAgent={selectAgent} />
+      </div>
+
+      {/* `basis-1/2` et non `flex-1` : la moitié est une part revendiquée, pas
+          un reste. Le flux d'événements prend ce qui demeure. */}
+      <GanttChart
+        className="min-h-0 basis-1/2"
+        fill
+        selectedAgentId={agent ?? null}
+        onSelectAgent={selectAgent}
+      />
+
+      <EventTimeline className="min-h-0 flex-1" fill />
+    </div>
   );
 }
 

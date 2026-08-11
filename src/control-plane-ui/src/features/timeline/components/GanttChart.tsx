@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { cn } from '@/core';
 import { SectionCard } from '@/components/vloc/SectionCard';
 import { EmptyState } from '@/components/vloc/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,6 +40,14 @@ export interface GanttChartProps {
    * 10 min ; l'écran d'analyse veut la session entière.
    */
   defaultRange?: TimelineRange;
+  className?: string;
+  /**
+   * La carte occupe la hauteur que lui laisse son parent flex et les lanes
+   * défilent à l'intérieur. C'est ce qui donne à la chronologie une part
+   * revendiquée de l'écran — la moitié sur la tour de contrôle — au lieu d'un
+   * plafond `max-h` qui la laisse rétrécir avec son contenu.
+   */
+  fill?: boolean;
 }
 
 /**
@@ -62,6 +71,8 @@ export function GanttChart({
   selectedAgentId,
   onSelectAgent,
   defaultRange = '10m',
+  className,
+  fill = false,
 }: GanttChartProps) {
   const [range, setRange] = useState<TimelineRange>(defaultRange);
   const [detailAgentId, setDetailAgentId] = useState<string | null>(null);
@@ -122,6 +133,8 @@ export function GanttChart({
   return (
     <>
       <SectionCard
+        className={className}
+        fill={fill}
         title="Chronologie des agents"
         description={
           spanMs === null
@@ -176,7 +189,7 @@ export function GanttChart({
             }
           />
         ) : (
-          <div className="relative max-h-[72vh] overflow-y-auto">
+          <div className={cn('relative overflow-y-auto', fill ? 'min-h-0 flex-1' : 'max-h-[72vh]')}>
             <TimelineAxis window={effectiveWindow ?? timeline.window} nowPct={nowPct} sticky />
 
             {/* Une seule surcouche pour toute la pile de sessions — la grille

@@ -48,7 +48,11 @@ function SessionAnalysis() {
         : null;
 
   return (
-    <>
+    // La coquille verrouille la hauteur au viewport (voir __root) : l'analyse
+    // s'allonge — bandeau, ventilation du coût, Gantt — donc elle défile chez
+    // elle. Le Gantt garde ici son plafond `max-h`, sans `fill` : on veut le
+    // voir en entier, pas dans une moitié d'écran.
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       <SectionCard
         title={`Session ${sessionId.slice(0, 8)}`}
         description={session?.project ?? 'Analyse de session'}
@@ -97,7 +101,7 @@ function SessionAnalysis() {
           void navigate({ search: { agent: agentId ?? '' }, replace: true })
         }
       />
-    </>
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import { ChevronsDown } from 'lucide-react';
+import { cn } from '@/core';
 import { SectionCard } from '@/components/vloc/SectionCard';
 import { EmptyState } from '@/components/vloc/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,8 +11,14 @@ import { StreamStatusIndicator } from './StreamStatusIndicator';
 
 const SKELETON_ROWS = 8;
 
+export interface EventTimelineProps {
+  className?: string;
+  /** Occupe la hauteur laissée par le parent flex, le tableau devenant la zone de défilement. */
+  fill?: boolean;
+}
+
 /** Filterable, live-updating event timeline — Slice 5. */
-export function EventTimeline() {
+export function EventTimeline({ className, fill = false }: EventTimelineProps) {
   const { items, isLoading, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage, refetch, streamStatus } =
     useEvents();
 
@@ -20,11 +27,13 @@ export function EventTimeline() {
       title="Event Streaming"
       description="Événements reçus par le hook pipeline, du plus récent au plus ancien"
       action={<StreamStatusIndicator status={streamStatus} />}
+      className={className}
+      fill={fill}
     >
-      <div className="flex flex-col gap-3">
+      <div className={cn('flex flex-col gap-3', fill && 'min-h-0 flex-1')}>
         <EventFiltersBar />
 
-        <div className="overflow-hidden rounded-lg border border-border">
+        <div className={cn('overflow-hidden rounded-lg border border-border', fill && 'flex min-h-0 flex-1 flex-col')}>
           {isLoading ? (
             <div className="flex flex-col gap-1 p-3">
               {Array.from({ length: SKELETON_ROWS }).map((_, index) => (
@@ -53,13 +62,13 @@ export function EventTimeline() {
             </div>
           ) : (
             <>
-              <div className="max-h-[60vh] overflow-y-auto">
+              <div className={cn('overflow-y-auto', fill ? 'min-h-0 flex-1' : 'max-h-[60vh]')}>
                 {items.map((event) => (
                   <EventRow key={event.id} event={event} />
                 ))}
               </div>
               {hasNextPage ? (
-                <div className="flex justify-center border-t border-border p-2">
+                <div className="flex shrink-0 justify-center border-t border-border p-2">
                   <Button
                     variant="ghost"
                     size="sm"

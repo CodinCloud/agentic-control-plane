@@ -11,11 +11,17 @@ const NAV = [
  * Coquille commune aux deux écrans. Pleine largeur, jamais une colonne centrée :
  * la largeur du Gantt *est* du temps, l'écraser détruit l'information. Voir
  * CONTEXT.md §"Doctrine de layout".
+ *
+ * Hauteur verrouillée au viewport (`h-screen`) plutôt qu'une page qui s'allonge :
+ * c'est ce qui permet à un écran de répartir la place en proportions — la
+ * chronologie sur la moitié, le reste en dessous. Un écran qui a besoin de
+ * défiler le déclare lui-même sur son propre conteneur ; il n'y a plus de
+ * défilement de page.
  */
 function RootLayout() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card/40 px-6 py-3">
+    <div className="flex h-screen flex-col bg-background text-foreground">
+      <header className="shrink-0 border-b border-border bg-card/40 px-6 py-3">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
             <Radar className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
@@ -42,7 +48,7 @@ function RootLayout() {
         </div>
       </header>
 
-      <main className="flex flex-col gap-6 px-6 py-6">
+      <main className="flex min-h-0 flex-1 flex-col gap-4 px-6 py-4">
         <Outlet />
       </main>
     </div>

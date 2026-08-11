@@ -20,6 +20,9 @@ function SessionList() {
   const sessions = timeline?.sessions ?? [];
 
   return (
+    // La coquille verrouille la hauteur au viewport (voir __root) : un écran qui
+    // s'allonge déclare son propre défilement.
+    <div className="min-h-0 flex-1 overflow-y-auto">
     <SectionCard
       title="Sessions"
       description="Coût équivalent API et tokens par session — cliquez pour analyser"
@@ -98,6 +101,7 @@ function SessionList() {
         </Table>
       )}
     </SectionCard>
+    </div>
   );
 }
 

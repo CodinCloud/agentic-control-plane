@@ -50,7 +50,9 @@ export function EventRow({ event }: EventRowProps) {
         {ObservabilityDomain.eventLabel(event)}
       </span>
 
-      <span className="w-20 shrink-0 truncate text-right text-muted-foreground" title={event.project ?? undefined}>
+      {/* Assez large pour un nom de projet entier : à `w-20`, « learning-framework »
+          se lisait « learning-fr… », ce qui ne distingue rien de ses voisins. */}
+      <span className="w-44 shrink-0 truncate text-right text-muted-foreground" title={event.project ?? undefined}>
         {event.project ?? '—'}
       </span>
 
